@@ -313,22 +313,29 @@ def api_data():
     # Načteme historii s downsamplingem na max 500 bodů
     return jsonify(get_history(hours=hours, room_id=room_id, max_points=500))
 
-# Seznam aktivních místností
+# Seznam aktivních místností s časem poslední aktivity
 @app.route('/api/rooms')
 def api_rooms():
     with sqlite3.connect(DB_FILE) as conn:
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT room_id FROM readings')
-        rooms = [r[0] for r in cursor.fetchall() if r[0]]
+        cursor.execute('SELECT room_id, MAX(timestamp) as last_seen FROM readings GROUP BY room_id')
+        rows = cursor.fetchall()
+    
+    rooms_data = {r["room_id"]: r["last_seen"] for r in rows if r["room_id"]}
     
     # Výchozí místnost musí být vždy v seznamu
-    if 'living_room' not in rooms:
-        rooms.insert(0, 'living_room')
+    if 'living_room' not in rooms_data:
+        rooms_data['living_room'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
     result = []
-    for r in rooms:
-        display_name = DEVICE_NAMES.get(r, r.replace('_', ' ').title())
-        result.append({"id": r, "name": display_name})
+    for r_id, last_seen in rooms_data.items():
+        display_name = DEVICE_NAMES.get(r_id, r_id.replace('_', ' ').title())
+        result.append({
+            "id": r_id,
+            "name": display_name,
+            "last_seen": last_seen
+        })
     return jsonify(result)
 
 # Endpoint pro přejmenování místnosti

@@ -13,8 +13,6 @@ const roomList = document.getElementById('roomList');
 const currentRoomName = document.getElementById('currentRoomName');
 const statusIndicator = document.getElementById('statusIndicator');
 
-const slider = document.getElementById('interval-slider');
-const intervalDisplay = document.getElementById('interval-display');
 const btnExport = document.getElementById('btnExport');
 const btnReset = document.getElementById('btnReset');
 const chartLoader = document.getElementById('chartLoader');
@@ -81,6 +79,22 @@ function formatRoomName(id) {
         .join(' ');
 }
 
+// Helper to calculate relative last seen time
+function timeAgo(dateString) {
+    if (!dateString) return "No data";
+    const t = dateString.split(/[- :]/);
+    const date = new Date(t[0], t[1]-1, t[2], t[3], t[4], t[5]);
+    const now = new Date();
+    const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffSec < 60) return "Just now";
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return date.toLocaleDateString();
+}
+
 // Format mapping
 let activeRoomNameMap = {"living_room": "Living Room"};
 
@@ -105,19 +119,34 @@ async function loadRoomsList() {
             itemContainer.style.background = '#252525';
             itemContainer.style.border = '1px solid #333';
             itemContainer.style.borderRadius = '6px';
-            itemContainer.style.padding = '2px 8px';
-            itemContainer.style.gap = '6px';
+            itemContainer.style.padding = '4px 10px';
+            itemContainer.style.gap = '8px';
             
             if (room.id === currentRoom) {
                 itemContainer.style.borderColor = '#4da6ff';
             }
 
+            // Calculate status (Active if seen in last 5 minutes)
+            const t = room.last_seen.split(/[- :]/);
+            const lastSeenDate = new Date(t[0], t[1]-1, t[2], t[3], t[4], t[5]);
+            const diffMin = Math.floor((new Date().getTime() - lastSeenDate.getTime()) / 60000);
+            const isActive = diffMin < 5; // 5 min threshold for sleep nodes
+
+            const dot = document.createElement('span');
+            dot.style.width = '8px';
+            dot.style.height = '8px';
+            dot.style.borderRadius = '50%';
+            dot.style.backgroundColor = isActive ? '#4dff88' : '#666';
+            if (isActive) {
+                dot.style.boxShadow = '0 0 6px #4dff88';
+            }
+
             // Clickable text item to switch active dashboard room
             const btn = document.createElement('div');
             btn.className = `room-item-btn`;
-            btn.innerText = room.name;
+            btn.innerHTML = `${room.name} <span style="font-size: 0.7rem; color: #555; font-weight: normal; margin-left: 4px;">(${timeAgo(room.last_seen)})</span>`;
             btn.style.flex = '1';
-            btn.style.padding = '8px 4px';
+            btn.style.padding = '6px 4px';
             btn.style.cursor = 'pointer';
             btn.style.fontSize = '0.85rem';
             btn.style.fontWeight = '600';
@@ -163,6 +192,7 @@ async function loadRoomsList() {
             renameBtn.onmouseenter = () => { renameBtn.style.opacity = '1'; };
             renameBtn.onmouseleave = () => { renameBtn.style.opacity = '0.6'; };
 
+            itemContainer.appendChild(dot);
             itemContainer.appendChild(btn);
             itemContainer.appendChild(renameBtn);
             roomList.appendChild(itemContainer);
@@ -184,22 +214,6 @@ document.querySelectorAll('.btn-time').forEach(btn => {
         updateDashboard(true);
     };
 });
-
-// Slider settings
-slider.oninput = function() { intervalDisplay.innerText = this.value + "s"; };
-slider.onchange = async function() {
-    try {
-        await fetch('/api/settings', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({interval: parseInt(this.value)})
-        });
-        setStatus(true);
-    } catch (err) {
-        console.error(err);
-        setStatus(false);
-    }
-};
 
 // Reset settings
 btnReset.onclick = async function() {
@@ -470,16 +484,6 @@ function drawEmptyChart() {
 
 // Initial script bootstrap
 async function init() {
-    // Load config settings
-    try {
-        const configRes = await fetch('/api/settings');
-        const config = await configRes.json();
-        slider.value = config.interval;
-        intervalDisplay.innerText = config.interval + "s";
-    } catch (err) {
-        console.error(err);
-    }
-
     // Bind Metric Tabs
     document.querySelectorAll('.btn-metric').forEach(btn => {
         btn.onclick = function() {
