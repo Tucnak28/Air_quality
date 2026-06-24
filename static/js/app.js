@@ -501,8 +501,14 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
         yRange = [minVal - padding, maxVal + padding];
     }
 
+    // Convert timestamps to local Date objects to prevent timezone mismatches in Plotly
+    const xDates = data.timestamp.map(ts => {
+        const t = ts.split(/[- :]/);
+        return new Date(t[0], t[1]-1, t[2], t[3], t[4], t[5]);
+    });
+
     const trace = {
-        x: data.timestamp,
+        x: xDates,
         y: yData,
         name: activeConfig.name,
         mode: 'lines+markers',
@@ -518,10 +524,10 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
         tickfont: { color: '#888' }
     };
 
-    if (currentHours > 0 && data.timestamp.length > 0) {
-        const lastTime = new Date(data.timestamp[data.timestamp.length - 1]);
+    if (currentHours > 0 && xDates.length > 0) {
+        const lastTime = xDates[xDates.length - 1];
         const startTime = new Date(lastTime.getTime() - (currentHours * 3600 * 1000));
-        xaxisConfig.range = [toLocalISOString(startTime), toLocalISOString(lastTime)];
+        xaxisConfig.range = [startTime, lastTime];
     } else {
         xaxisConfig.autorange = true;
     }
