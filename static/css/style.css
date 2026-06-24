@@ -62,15 +62,30 @@ body {
     height: 18px;
 }
 
-.brand-title {
-    margin: 0;
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #fff;
+.brand-info {
+    display: flex;
+    flex-direction: column;
     flex: 1;
     overflow: hidden;
+}
+
+.brand-title {
+    margin: 0;
+    font-size: 1.12rem;
+    font-weight: 700;
+    color: #fff;
     text-overflow: ellipsis;
     white-space: nowrap;
+    overflow: hidden;
+}
+
+.brand-subtitle {
+    font-size: 0.65rem;
+    color: #888;
+    font-weight: 600;
+    margin-top: 1px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
 }
 
 .status-indicator {

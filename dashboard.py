@@ -373,6 +373,8 @@ def api_data():
         max_points = 300
         
     data = get_history(hours=hours, room_id=room_id, max_points=max_points)
+    
+    data["last_seen"] = DEVICE_LAST_SEEN.get(room_id)
     data["is_warming_up"] = (room_id == 'living_room' and SENSOR_STATUS["is_warming_up"])
     data["remaining_cycles"] = SENSOR_STATUS["remaining_cycles"] if room_id == 'living_room' else 0
     data["remaining_seconds"] = SENSOR_STATUS["remaining_seconds"] if room_id == 'living_room' else 0

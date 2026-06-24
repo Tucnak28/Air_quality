@@ -264,7 +264,19 @@ async function updateDashboard(forceSpinner = false) {
         const data = await res.json();
         const isWarmingUp = data.is_warming_up || false;
         const remainingSec = data.remaining_seconds || 0;
+        const lastSeen = data.last_seen || null;
+        
         setStatus(true, isWarmingUp, remainingSec);
+        
+        // Update check-in subtitle dynamically
+        const lastSeenTimeEl = document.getElementById('lastSeenTime');
+        if (lastSeenTimeEl) {
+            if (lastSeen) {
+                lastSeenTimeEl.innerText = `Last check-in: ${timeAgo(lastSeen)}`;
+            } else {
+                lastSeenTimeEl.innerText = `Last check-in: --`;
+            }
+        }
         
         const length = data.timestamp ? data.timestamp.length : 0;
         
