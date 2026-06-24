@@ -204,7 +204,7 @@ slider.onchange = async function() {
 // Reset settings
 btnReset.onclick = async function() {
     const displayName = activeRoomNameMap[currentRoom] || formatRoomName(currentRoom);
-    if (confirm(`Smazat veškerou historii pro místnost "${displayName}"?`)) {
+    if (confirm(`Opravdu chcete smazat místnost "${displayName}" a veškerou její historii?`)) {
         try {
             await fetch(`/api/reset?room=${currentRoom}`, { method: 'POST' });
             updateDashboard(true);
