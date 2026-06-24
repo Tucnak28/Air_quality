@@ -40,18 +40,29 @@ const cardHum = document.getElementById('cardHum');
 const cardPress = document.getElementById('cardPress');
 
 // --- DRAWER CONTROLS ---
-menuBtn.onclick = function() {
-    roomDrawer.classList.add('open');
-    drawerOverlay.classList.add('active');
-    loadRoomsList();
-};
-
+menuBtn.onclick = openDrawer;
 closeDrawerBtn.onclick = closeDrawer;
 drawerOverlay.onclick = closeDrawer;
+
+function openDrawer() {
+    roomDrawer.classList.add('open');
+    drawerOverlay.classList.add('active');
+    drawerOverlay.style.display = 'block';
+    setTimeout(() => {
+        drawerOverlay.style.opacity = '1';
+    }, 10);
+    loadRoomsList();
+}
 
 function closeDrawer() {
     roomDrawer.classList.remove('open');
     drawerOverlay.classList.remove('active');
+    drawerOverlay.style.opacity = '0';
+    setTimeout(() => {
+        if (!roomDrawer.classList.contains('open')) {
+            drawerOverlay.style.display = 'none';
+        }
+    }, 250);
 }
 
 // Set Connection status
@@ -419,5 +430,116 @@ async function init() {
     // Set periodic polling
     updateInterval = setInterval(() => updateDashboard(false), 5000);
 }
+
+// --- TOUCH SWIPE GESTURES FOR MOBILE ---
+let touchStartX = 0;
+let touchStartY = 0;
+let isDragging = false;
+const drawerWidth = 260; // matching CSS transform offset
+
+document.addEventListener('touchstart', (e) => {
+    const touch = e.touches[0];
+    const isOpen = roomDrawer.classList.contains('open');
+    
+    // Skip if touching sliders or the plotly chart area to avoid locking control inputs
+    if (e.target.closest('input[type=range]') || e.target.closest('.plotly-chart')) {
+        return;
+    }
+
+    if (!isOpen && touch.clientX < 45) {
+        // Start dragging to pull open from left edge
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        isDragging = true;
+        roomDrawer.style.transition = 'none';
+        drawerOverlay.style.transition = 'none';
+        drawerOverlay.style.display = 'block';
+        drawerOverlay.style.opacity = '0';
+        drawerOverlay.classList.add('active');
+    } else if (isOpen) {
+        // Start dragging to push close (anywhere on screen)
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+        isDragging = true;
+        roomDrawer.style.transition = 'none';
+        drawerOverlay.style.transition = 'none';
+    }
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = touch.clientY - touchStartY;
+    
+    const isOpen = roomDrawer.classList.contains('open');
+    
+    // Cancel swipe detection if user is scrolling vertically on a closed drawer
+    if (!isOpen && Math.abs(deltaY) > Math.abs(deltaX)) {
+        isDragging = false;
+        drawerOverlay.classList.remove('active');
+        drawerOverlay.style.display = 'none';
+        roomDrawer.style.transform = '';
+        return;
+    }
+    
+    if (!isOpen) {
+        // Pulling open: transform goes from -260px towards 0px
+        let tx = -drawerWidth + deltaX;
+        if (tx > 0) tx = 0;
+        if (tx < -drawerWidth) tx = -drawerWidth;
+        
+        roomDrawer.style.transform = `translateX(${tx}px)`;
+        const progress = (tx + drawerWidth) / drawerWidth;
+        drawerOverlay.style.opacity = progress * 0.6;
+    } else {
+        // Pushing close: transform goes from 0px towards -260px
+        let tx = deltaX;
+        if (tx > 0) tx = 0;
+        if (tx < -drawerWidth) tx = -drawerWidth;
+        
+        roomDrawer.style.transform = `translateX(${tx}px)`;
+        const progress = (drawerWidth + tx) / drawerWidth;
+        drawerOverlay.style.opacity = progress * 0.6;
+    }
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    
+    // Reset transition animations
+    roomDrawer.style.transition = '';
+    drawerOverlay.style.transition = '';
+    
+    const isOpen = roomDrawer.classList.contains('open');
+    const transformStr = roomDrawer.style.transform;
+    
+    // Reset inline styles
+    roomDrawer.style.transform = '';
+    drawerOverlay.style.opacity = '';
+    
+    if (transformStr) {
+        const match = transformStr.match(/translateX\(([-\d.]+)px\)/);
+        if (match) {
+            const currentTx = parseFloat(match[1]);
+            if (!isOpen) {
+                // If pulled out more than 80px, open it
+                if (currentTx > -180) {
+                    openDrawer();
+                } else {
+                    closeDrawer();
+                }
+            } else {
+                // If pushed closed more than 80px, close it
+                if (currentTx < -80) {
+                    closeDrawer();
+                } else {
+                    openDrawer();
+                }
+            }
+        }
+    }
+});
 
 init();

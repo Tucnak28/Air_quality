@@ -376,20 +376,21 @@ input[type=range] {
 .room-drawer {
     position: fixed;
     top: 0;
-    left: -260px;
+    left: 0;
     width: 250px;
     height: 100%;
     background: #1a1a1a;
     border-right: 1px solid #333;
     z-index: 1000;
-    transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateX(-260px);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     box-shadow: 4px 0 15px rgba(0, 0, 0, 0.5);
 }
 
 .room-drawer.open {
-    left: 0;
+    transform: translateX(0);
 }
 
 .drawer-header {
@@ -468,11 +469,13 @@ input[type=range] {
     display: none;
     opacity: 0;
     transition: opacity 0.25s ease;
+    pointer-events: none;
 }
 
 .drawer-overlay.active {
     display: block;
     opacity: 1;
+    pointer-events: auto;
 }
 
 /* DESKTOP REMASTERED LAYOUT (Fixes scrollbar & cutoffs) */
