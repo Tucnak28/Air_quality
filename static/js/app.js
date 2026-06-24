@@ -459,20 +459,6 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
         return;
     }
 
-    // Calculate 10% padding above and below active data points
-    const values = data[currentMetric].filter(v => v !== null && v !== undefined);
-    let yRange = null;
-    if (values.length > 0) {
-        const minVal = Math.min(...values);
-        const maxVal = Math.max(...values);
-        const diff = maxVal - minVal;
-        let padding = diff * 0.1;
-        if (diff === 0) {
-            padding = Math.abs(minVal) * 0.1 || 10;
-        }
-        yRange = [minVal - padding, maxVal + padding];
-    }
-
     const trace = {
         x: data.timestamp,
         y: data[currentMetric],
@@ -514,9 +500,7 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
             gridcolor: '#222',
             fixedrange: true,
             zeroline: false,
-            title: activeConfig.unit,
-            tickformat: ',.0f',
-            range: yRange || undefined
+            title: activeConfig.unit
         }
     };
 
