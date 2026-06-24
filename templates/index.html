@@ -3,173 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="description" content="Premium IoT Air Quality Dashboard for smart homes. Tracks CO2, Temperature, Humidity, and Pressure across multiple rooms.">
-    <title>BreatheSensi - Air Quality Dashboard</title>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>CO2 Monitor</title>
     <!-- Plotly.js -->
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
     <!-- Stylesheet -->
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
-    <!-- Top Navigation Bar -->
-    <header class="navbar" id="navbar">
-        <button class="menu-btn" id="menuBtn" aria-label="Open Room Selector">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
-        </button>
-        <h1 class="brand-title" id="mainTitle">BreatheSensi</h1>
-        <div class="status-indicator">
-            <span class="pulse-dot"></span>
-            <span class="status-text" id="statusText">Connected</span>
-        </div>
-    </header>
 
-    <!-- Slideable Left Sidebar -->
-    <aside class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h2>Rooms & Nodes</h2>
-            <button class="close-btn" id="closeBtn" aria-label="Close Room Selector">
+    <!-- Left Panel (Sidebar on Desktop, Top Section on Mobile) -->
+    <div class="header-section">
+        <!-- Room Selector & Brand Header -->
+        <div class="brand-row">
+            <button class="menu-btn" id="menuBtn" aria-label="Rooms">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
                 </svg>
             </button>
+            <h1 class="brand-title" id="currentRoomName">Living Room</h1>
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-dot"></span>
+            </div>
         </div>
-        <nav class="room-list" id="roomList" aria-label="Room navigation">
-            <!-- Dynamically loaded rooms will go here -->
-            <div class="room-skeleton"></div>
-            <div class="room-skeleton"></div>
-            <div class="room-skeleton"></div>
-        </nav>
-        <div class="sidebar-footer">
-            <p>RPi 4B Controller & Gateway</p>
-        </div>
-    </aside>
 
-    <!-- Overlay when sidebar is open -->
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-    <!-- Main Content Area -->
-    <main class="dashboard-container">
-        <!-- Room Banner Info -->
-        <section class="room-banner">
-            <h2 id="currentRoomName">Living Room</h2>
-            <p id="lastUpdateTime">Last updated: Just now</p>
-        </section>
-
-        <!-- Stats Grid (Micro-Animated Cards) -->
-        <section class="stats-grid">
+        <!-- Stats Grid (CO2, Temp, Hum, Pressure) -->
+        <div class="stats-grid">
             <!-- CO2 Card -->
-            <article class="card card-co2" id="cardCo2">
-                <div class="card-header">
-                    <h3>Carbon Dioxide</h3>
-                    <span class="icon">💨</span>
+            <div class="card" id="cardCo2">
+                <h2>CO2</h2>
+                <div class="value-row">
+                    <span id="val-co2" class="value">--</span>
+                    <span class="unit">PPM</span>
                 </div>
-                <div class="value-container">
-                    <span class="value" id="valCo2">--</span>
-                    <span class="unit">ppm</span>
-                </div>
-                <div class="trend-indicator" id="trendCo2">--</div>
-                <div class="prediction-text" id="predCo2">Analyzing baseline...</div>
-            </article>
+                <div id="trend-co2" class="trend">--</div>
+                <div id="pred-co2" class="prediction">Calc...</div>
+            </div>
 
             <!-- Temperature Card -->
-            <article class="card card-temp" id="cardTemp">
-                <div class="card-header">
-                    <h3>Temperature</h3>
-                    <span class="icon">🌡️</span>
-                </div>
-                <div class="value-container">
-                    <span class="value" id="valTemp">--</span>
+            <div class="card" id="cardTemp">
+                <h2>TEMP</h2>
+                <div class="value-row">
+                    <span id="val-temp" class="value" style="color: #4da6ff;">--</span>
                     <span class="unit">°C</span>
                 </div>
-                <div class="trend-indicator" id="trendTemp">--</div>
-            </article>
+                <div id="trend-temp" class="trend">--</div>
+            </div>
 
             <!-- Humidity Card -->
-            <article class="card card-hum" id="cardHum">
-                <div class="card-header">
-                    <h3>Humidity</h3>
-                    <span class="icon">💧</span>
-                </div>
-                <div class="value-container">
-                    <span class="value" id="valHum">--</span>
+            <div class="card" id="cardHum">
+                <h2>HUM</h2>
+                <div class="value-row">
+                    <span id="val-hum" class="value" style="color: #4dff88;">--</span>
                     <span class="unit">%</span>
                 </div>
-                <div class="trend-indicator" id="trendHum">--</div>
-            </article>
+                <div id="trend-hum" class="trend">--</div>
+            </div>
 
             <!-- Pressure Card -->
-            <article class="card card-press" id="cardPress">
-                <div class="card-header">
-                    <h3>Air Pressure</h3>
-                    <span class="icon">🎈</span>
-                </div>
-                <div class="value-container">
-                    <span class="value" id="valPress">--</span>
+            <div class="card" id="cardPress">
+                <h2>PRESSURE</h2>
+                <div class="value-row">
+                    <span id="val-press" class="value" style="color: #ffb84d;">--</span>
                     <span class="unit">hPa</span>
                 </div>
-                <div class="trend-indicator" id="trendPress">--</div>
-            </article>
-        </section>
+                <div id="trend-press" class="trend">--</div>
+            </div>
+        </div>
 
-        <!-- Dynamic Chart Panel -->
-        <section class="chart-panel">
-            <div class="chart-header">
-                <h3>Environmental Trends</h3>
-                <div class="time-range-picker">
-                    <button class="btn-time" data-minutes="15">15m</button>
-                    <button class="btn-time" data-minutes="60">1h</button>
-                    <button class="btn-time" data-minutes="360">6h</button>
-                    <button class="btn-time" data-minutes="1440">24h</button>
-                    <button class="btn-time active" data-minutes="0">All</button>
+        <!-- Controls Area -->
+        <div class="controls-area">
+            <!-- Time Ranges Row -->
+            <div class="time-row">
+                <button class="btn-time" data-minutes="15">15m</button>
+                <button class="btn-time" data-minutes="60">1h</button>
+                <button class="btn-time" data-minutes="360">6h</button>
+                <button class="btn-time" data-minutes="1440">24h</button>
+                <button class="btn-time active" data-minutes="0">All</button>
+            </div>
+
+            <!-- Bottom Settings Card -->
+            <div class="bottom-controls">
+                <div class="slider-wrapper">
+                    <span class="slider-label" id="interval-display">60s</span>
+                    <input type="range" id="interval-slider" min="5" max="600" value="60" step="5">
+                </div>
+                <div class="action-row">
+                    <a href="#" id="btnExport" class="btn-action btn-csv">CSV</a>
+                    <button id="btnReset" class="btn-action btn-reset">Reset History</button>
                 </div>
             </div>
-            <div class="chart-container">
-                <div id="chart" class="plotly-chart"></div>
-                <div class="chart-loading" id="chartLoading">
-                    <div class="spinner"></div>
-                </div>
-            </div>
-        </section>
+        </div>
+    </div>
 
-        <!-- Settings & Management Controls -->
-        <section class="controls-panel">
-            <div class="control-group">
-                <h4>Sensing Frequency</h4>
-                <div class="slider-control">
-                    <span class="slider-val" id="intervalDisplay">60s</span>
-                    <input type="range" id="intervalSlider" min="5" max="600" value="60" step="5" aria-label="Sensor Reading Interval">
-                </div>
-            </div>
-            <div class="action-buttons">
-                <a href="#" id="btnExport" class="btn btn-primary">
-                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    Export CSV
-                </a>
-                <button id="btnReset" class="btn btn-danger">
-                    <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                    Clear History
-                </button>
-            </div>
-        </section>
-    </main>
+    <!-- Right Panel (Graph Section - Fills remaining space) -->
+    <div class="graph-section">
+        <div id="chart"></div>
+        <div class="chart-loader" id="chartLoader">
+            <span class="loader-spinner"></span>
+        </div>
+    </div>
 
-    <!-- App JavaScript -->
+    <!-- Sliding Room Drawer (Slides in from Left) -->
+    <div class="room-drawer" id="roomDrawer">
+        <div class="drawer-header">
+            <h3>Select Room</h3>
+            <button class="close-drawer-btn" id="closeDrawerBtn">&times;</button>
+        </div>
+        <div class="drawer-body" id="roomList">
+            <!-- Dynamically populated room items -->
+        </div>
+    </div>
+    <!-- Drawer Overlay -->
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+
+    <!-- Script -->
     <script src="/static/js/app.js"></script>
 </body>
 </html>

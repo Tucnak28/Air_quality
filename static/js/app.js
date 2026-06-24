@@ -1,233 +1,209 @@
-// BreatheSensi - Dashboard Controller
-
 // State Management
 let currentRoom = 'living_room';
-let currentHours = 168; // 1 week by default (All)
+let currentHours = 168; // default to 168 (All)
 let updateInterval = null;
 
 // DOM Elements
-const sidebar = document.getElementById('sidebar');
 const menuBtn = document.getElementById('menuBtn');
-const closeBtn = document.getElementById('closeBtn');
-const sidebarOverlay = document.getElementById('sidebarOverlay');
+const roomDrawer = document.getElementById('roomDrawer');
+const closeDrawerBtn = document.getElementById('closeDrawerBtn');
+const drawerOverlay = document.getElementById('drawerOverlay');
 const roomList = document.getElementById('roomList');
 const currentRoomName = document.getElementById('currentRoomName');
-const lastUpdateTime = document.getElementById('lastUpdateTime');
-const intervalSlider = document.getElementById('intervalSlider');
-const intervalDisplay = document.getElementById('intervalDisplay');
+const statusIndicator = document.getElementById('statusIndicator');
+
+const slider = document.getElementById('interval-slider');
+const intervalDisplay = document.getElementById('interval-display');
 const btnExport = document.getElementById('btnExport');
 const btnReset = document.getElementById('btnReset');
-const chartLoading = document.getElementById('chartLoading');
-const statusIndicator = document.querySelector('.status-indicator');
-const statusText = document.getElementById('statusText');
+const chartLoader = document.getElementById('chartLoader');
 
-// Value Elements
-const valCo2 = document.getElementById('valCo2');
-const trendCo2 = document.getElementById('trendCo2');
-const predCo2 = document.getElementById('predCo2');
+// Stats Elements
+const valCo2 = document.getElementById('val-co2');
+const trendCo2 = document.getElementById('trend-co2');
+const predCo2 = document.getElementById('pred-co2');
 
-const valTemp = document.getElementById('valTemp');
-const trendTemp = document.getElementById('trendTemp');
+const valTemp = document.getElementById('val-temp');
+const trendTemp = document.getElementById('trend-temp');
 
-const valHum = document.getElementById('valHum');
-const trendHum = document.getElementById('trendHum');
+const valHum = document.getElementById('val-hum');
+const trendHum = document.getElementById('trend-hum');
 
-const valPress = document.getElementById('valPress');
-const trendPress = document.getElementById('trendPress');
+const valPress = document.getElementById('val-press');
+const trendPress = document.getElementById('trend-press');
 
-// Cards references for visibility toggling
+// Cards for Toggling Visibility
 const cardCo2 = document.getElementById('cardCo2');
 const cardTemp = document.getElementById('cardTemp');
 const cardHum = document.getElementById('cardHum');
 const cardPress = document.getElementById('cardPress');
 
-// Event Listeners
-menuBtn.addEventListener('click', openSidebar);
-closeBtn.addEventListener('click', closeSidebar);
-sidebarOverlay.addEventListener('click', closeSidebar);
-
-// Time buttons click
-document.querySelectorAll('.btn-time').forEach(button => {
-    button.addEventListener('click', (e) => {
-        document.querySelectorAll('.btn-time').forEach(btn => btn.classList.remove('active'));
-        button.classList.add('active');
-        const minutes = parseInt(button.dataset.minutes);
-        // Conversion from minutes picker to hours
-        currentHours = minutes === 0 ? 0 : minutes / 60;
-        updateDashboard(true); // Force show loading spinner on manual range change
-    });
-});
-
-// Slider inputs
-intervalSlider.oninput = function() {
-    intervalDisplay.innerText = this.value + "s";
-};
-
-intervalSlider.onchange = async function() {
-    try {
-        await fetch('/api/settings', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ interval: parseInt(this.value) })
-        });
-        setOnlineStatus(true);
-    } catch (err) {
-        console.error("Failed to save settings", err);
-        setOnlineStatus(false);
-    }
-};
-
-btnReset.addEventListener('click', async () => {
-    if (confirm(`Are you sure you want to clear the entire history for room "${currentRoom.replace('_', ' ')}"?`)) {
-        try {
-            await fetch(`/api/reset?room=${currentRoom}`, { method: 'POST' });
-            updateDashboard(true);
-        } catch (err) {
-            console.error("Failed to reset history", err);
-        }
-    }
-});
-
-// Sidebar Controls
-function openSidebar() {
-    sidebar.classList.add('open');
-    sidebarOverlay.classList.add('active');
+// --- DRAWER CONTROLS ---
+menuBtn.onclick = function() {
+    roomDrawer.classList.add('open');
+    drawerOverlay.classList.add('active');
     loadRoomsList();
+};
+
+closeDrawerBtn.onclick = closeDrawer;
+drawerOverlay.onclick = closeDrawer;
+
+function closeDrawer() {
+    roomDrawer.classList.remove('open');
+    drawerOverlay.classList.remove('active');
 }
 
-function closeSidebar() {
-    sidebar.classList.remove('open');
-    sidebarOverlay.classList.remove('active');
-}
-
-function setOnlineStatus(online) {
+// Set Connection status
+function setStatus(online) {
     if (online) {
         statusIndicator.classList.remove('offline');
-        statusText.innerText = "Connected";
     } else {
         statusIndicator.classList.add('offline');
-        statusText.innerText = "Offline";
     }
 }
 
-// Format Name for Display (e.g. living_room -> Living Room)
+// Format ID (e.g. living_room -> Living Room)
 function formatRoomName(id) {
     return id.split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join(' ');
 }
 
-// Load dynamic rooms list
+// Load Rooms list
 async function loadRoomsList() {
     try {
         const res = await fetch('/api/rooms');
         const rooms = await res.json();
-        setOnlineStatus(true);
+        setStatus(true);
         
         roomList.innerHTML = '';
         rooms.forEach(room => {
-            const btn = document.createElement('button');
+            const btn = document.createElement('div');
             btn.className = `room-item ${room === currentRoom ? 'active' : ''}`;
-            btn.innerHTML = `<span>${formatRoomName(room)}</span>`;
-            btn.onclick = () => selectRoom(room);
+            btn.innerText = formatRoomName(room);
+            btn.onclick = () => {
+                currentRoom = room;
+                currentRoomName.innerText = formatRoomName(room);
+                btnExport.href = `/api/export?room=${room}`;
+                closeDrawer();
+                updateDashboard(true);
+            };
             roomList.appendChild(btn);
         });
     } catch (err) {
-        console.error("Failed to fetch rooms list", err);
-        setOnlineStatus(false);
+        console.error(err);
+        setStatus(false);
     }
 }
 
-// Change active room
-function selectRoom(room) {
-    currentRoom = room;
-    currentRoomName.innerText = formatRoomName(room);
-    
-    // Update CSV export link
-    btnExport.href = `/api/export?room=${room}`;
-    
-    closeSidebar();
-    updateDashboard(true); // Force refresh with spinner
-}
+// Time Range Settings
+document.querySelectorAll('.btn-time').forEach(btn => {
+    btn.onclick = function() {
+        document.querySelectorAll('.btn-time').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const minutes = parseInt(this.dataset.minutes);
+        currentHours = minutes === 0 ? 0 : minutes / 60;
+        updateDashboard(true);
+    };
+});
 
-// Fetch dashboard data
-async function updateDashboard(showSpinner = false) {
-    if (showSpinner) chartLoading.classList.add('active');
+// Slider settings
+slider.oninput = function() { intervalDisplay.innerText = this.value + "s"; };
+slider.onchange = async function() {
+    try {
+        await fetch('/api/settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({interval: parseInt(this.value)})
+        });
+        setStatus(true);
+    } catch (err) {
+        console.error(err);
+        setStatus(false);
+    }
+};
+
+// Reset settings
+btnReset.onclick = async function() {
+    if (confirm(`Smazat veškerou historii pro místnost "${formatRoomName(currentRoom)}"?`)) {
+        try {
+            await fetch(`/api/reset?room=${currentRoom}`, { method: 'POST' });
+            updateDashboard(true);
+        } catch (err) {
+            console.error(err);
+        }
+    }
+};
+
+// --- UPDATE DASHBOARD ---
+async function updateDashboard(forceSpinner = false) {
+    if (forceSpinner) chartLoader.classList.add('active');
     
     try {
-        const url = `/api/data?room=${currentRoom}&hours=${currentHours}`;
-        const res = await fetch(url);
+        const res = await fetch(`/api/data?room=${currentRoom}&hours=${currentHours}`);
         const data = await res.json();
-        setOnlineStatus(true);
-
-        const timestampLength = data.timestamp ? data.timestamp.length : 0;
+        setStatus(true);
         
-        if (timestampLength > 0) {
-            // Update last updated text
-            const lastTimeStr = data.timestamp[timestampLength - 1];
-            lastUpdateTime.innerText = `Last updated: ${lastTimeStr}`;
-            
-            // Analyze which sensors are reporting (any non-null values?)
+        const length = data.timestamp ? data.timestamp.length : 0;
+        
+        if (length > 0) {
+            // Determine active parameters
             const hasCo2 = data.co2 && data.co2.some(v => v !== null);
             const hasTemp = data.temp && data.temp.some(v => v !== null);
             const hasHum = data.hum && data.hum.some(v => v !== null);
             const hasPress = data.pressure && data.pressure.some(v => v !== null);
             
-            // Toggle card displays
+            // Toggle card UI element displays
             cardCo2.style.display = hasCo2 ? 'flex' : 'none';
             cardTemp.style.display = hasTemp ? 'flex' : 'none';
             cardHum.style.display = hasHum ? 'flex' : 'none';
             cardPress.style.display = hasPress ? 'flex' : 'none';
-
-            // Calculate trends
+            
             const trends = calculateTrends(data);
-
-            // Update individual stats
+            
             if (hasCo2) {
-                const latestCo2 = data.co2[timestampLength - 1];
-                valCo2.innerText = Math.round(latestCo2);
+                const lastCo2 = data.co2[length - 1];
+                valCo2.innerText = Math.round(lastCo2);
+                
                 valCo2.className = "value";
-                if (latestCo2 < 1000) valCo2.classList.add("good");
-                else if (latestCo2 < 1800) valCo2.classList.add("warning");
+                if (lastCo2 < 1000) valCo2.classList.add("good");
+                else if (lastCo2 < 1800) valCo2.classList.add("warning");
                 else valCo2.classList.add("danger");
+                
                 formatTrend('trend-co2', trends.co2, 'ppm', true);
-                updatePrediction(latestCo2, trends.co2);
+                updatePrediction(lastCo2, trends.co2);
             }
-
+            
             if (hasTemp) {
-                const latestTemp = data.temp[timestampLength - 1];
-                valTemp.innerText = latestTemp.toFixed(1);
+                valTemp.innerText = data.temp[length - 1].toFixed(1);
                 formatTrend('trend-temp', trends.temp, '°C', false);
             }
-
+            
             if (hasHum) {
-                const latestHum = data.hum[timestampLength - 1];
-                valHum.innerText = Math.round(latestHum);
+                valHum.innerText = data.hum[length - 1].toFixed(0);
                 formatTrend('trend-hum', trends.hum, '%', false);
             }
-
+            
             if (hasPress) {
-                const latestPress = data.pressure[timestampLength - 1];
-                valPress.innerText = Math.round(latestPress);
+                valPress.innerText = data.pressure[length - 1].toFixed(0);
                 formatTrend('trend-press', trends.pressure, 'hPa', false);
             }
-
-            // Draw Chart
+            
             drawChart(data, hasCo2, hasTemp, hasHum, hasPress);
         } else {
-            // Empty room state
             valCo2.innerText = "--";
             valTemp.innerText = "--";
             valHum.innerText = "--";
             valPress.innerText = "--";
-            lastUpdateTime.innerText = "No data available for this room";
             drawEmptyChart();
         }
+        
     } catch (err) {
-        console.error("Error updating dashboard data:", err);
-        setOnlineStatus(false);
+        console.error(err);
+        setStatus(false);
     } finally {
-        chartLoading.classList.remove('active');
+        chartLoader.classList.remove('active');
     }
 }
 
@@ -254,10 +230,10 @@ function calculateTrends(data) {
     if (timeDiffMin <= 0) return { co2: 0, temp: 0, hum: 0, pressure: 0 };
 
     const getSlope = (arr) => {
-        const currentVal = arr[len - 1];
-        const pastVal = arr[idxPast];
-        if (currentVal === null || pastVal === null) return 0;
-        return (currentVal - pastVal) / timeDiffMin;
+        const valNow = arr[len - 1];
+        const valPast = arr[idxPast];
+        if (valNow === null || valPast === null) return 0;
+        return (valNow - valPast) / timeDiffMin;
     };
 
     return {
@@ -268,23 +244,23 @@ function calculateTrends(data) {
     };
 }
 
-// Predict time to 2000ppm limit for CO2
+// Calculate predictive air status
 function updatePrediction(currentCo2, slope) {
     const limit = 2000;
-    predCo2.className = "prediction-text";
+    predCo2.className = "prediction";
 
     if (currentCo2 >= limit) {
-        predCo2.innerHTML = "STATUS: <b style='color:#ef4444'>STALE AIR</b>";
+        predCo2.innerHTML = "STATUS: <b style='color:#ff4d4d'>STALE AIR</b>";
         return;
     }
 
-    if (slope <= 0.3) {
-        predCo2.innerHTML = "Air Quality: <span style='color:#10b981; font-weight:600;'>Stable</span>";
+    if (slope <= 0.5) {
+        predCo2.innerHTML = "Air Quality: Stable";
+        predCo2.style.color = "#4dff88";
     } else {
         const minutesLeft = (limit - currentCo2) / slope;
-        
-        if (minutesLeft > 1440) { // More than 24h
-            predCo2.innerHTML = "To 2000ppm: &gt; 24h";
+        if (minutesLeft > 1440) {
+            predCo2.innerHTML = "To 2000ppm: > 24h";
         } else {
             const hrs = Math.floor(minutesLeft / 60);
             const mins = Math.floor(minutesLeft % 60);
@@ -294,71 +270,62 @@ function updatePrediction(currentCo2, slope) {
     }
 }
 
-// Helper to format trend display arrows
+// Formats display arrows for trend vectors
 function formatTrend(elemId, val, unit, invertColors) {
     const el = document.getElementById(elemId);
     if (!el) return;
-    const arrow = val > 0.02 ? '▲' : (val < -0.02 ? '▼' : '−');
-    const absVal = Math.abs(val).toFixed(2); 
+    const arrow = val > 0.05 ? '▲' : (val < -0.05 ? '▼' : '−');
+    const absVal = Math.abs(val).toFixed(1); 
     el.innerText = `${arrow} ${absVal} ${unit}/min`;
 
-    el.className = 'trend-indicator';
-    if (Math.abs(val) <= 0.02) {
-        el.classList.add('trend-neutral');
-    } else if (val > 0) {
-        el.classList.add(invertColors ? 'trend-up' : 'trend-down'); 
-    } else {
-        el.classList.add(invertColors ? 'trend-down' : 'trend-up'); 
-    }
+    el.className = 'trend';
+    if (Math.abs(val) <= 0.05) el.classList.add('trend-neutral');
+    else if (val > 0) el.classList.add(invertColors ? 'trend-up' : 'trend-down'); 
+    else el.classList.add(invertColors ? 'trend-down' : 'trend-up'); 
 }
 
-// Convert UTC dates properly for Plotly range configurations
+// Converts UTC timestamps correctly for Plotly
 function toLocalISOString(dateObj) {
     const offset = dateObj.getTimezoneOffset() * 60000; 
     const localTime = new Date(dateObj.getTime() - offset);
     return localTime.toISOString().slice(0, 19); 
 }
 
-// Render dynamic subplots based on what sensors are reporting in the room
+// Renders Graph using clean classic dark grids
 function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
     const traces = [];
+    const activePlots = [];
     
-    // Check active layout configuration
-    const activeSensors = [];
-    if (hasCo2) activeSensors.push({ key: 'co2', name: 'CO2', color: '#a78bfa', yAxisIndex: 1 });
-    if (hasTemp) activeSensors.push({ key: 'temp', name: 'Temp', color: '#38bdf8', yAxisIndex: 2 });
-    if (hasHum) activeSensors.push({ key: 'hum', name: 'Hum', color: '#34d399', yAxisIndex: 3 });
-    if (hasPress) activeSensors.push({ key: 'pressure', name: 'Pressure', color: '#fbbf24', yAxisIndex: 4 });
+    if (hasCo2) activePlots.push({ key: 'co2', name: 'CO2', color: '#ff4d4d' });
+    if (hasTemp) activePlots.push({ key: 'temp', name: 'Temp', color: '#4da6ff' });
+    if (hasHum) activePlots.push({ key: 'hum', name: 'Hum', color: '#4dff88' });
+    if (hasPress) activePlots.push({ key: 'pressure', name: 'Pressure', color: '#ffb84d' });
 
-    const totalSubplots = activeSensors.length;
+    const totalSubplots = activePlots.length;
     if (totalSubplots === 0) {
         drawEmptyChart();
         return;
     }
 
-    // Build Plotly Traces dynamically
-    activeSensors.forEach((sensor, index) => {
-        // Plotly uses 'y', 'y2', 'y3', 'y4' for multiple axis
-        const axisSuffix = index === 0 ? '' : (index + 1);
+    activePlots.forEach((plot, idx) => {
+        const suffix = idx === 0 ? '' : (idx + 1);
         traces.push({
             x: data.timestamp,
-            y: data[sensor.key],
-            name: sensor.name,
-            mode: 'lines',
-            line: { color: sensor.color, width: 2.5, shape: 'spline' },
-            yaxis: 'y' + axisSuffix,
-            type: 'scatter'
+            y: data[plot.key],
+            name: plot.name,
+            mode: 'lines+markers',
+            type: 'scatter',
+            line: { color: plot.color, width: 2 },
+            marker: { size: 3 },
+            yaxis: 'y' + suffix
         });
     });
 
-    // Timeframe range configuration
     let xaxisConfig = { 
         type: 'date', 
-        gridcolor: 'rgba(255, 255, 255, 0.05)', 
-        linecolor: 'rgba(255, 255, 255, 0.08)',
+        gridcolor: '#222', 
         fixedrange: true,
-        tickcolor: 'rgba(255, 255, 255, 0.2)',
-        tickfont: { color: '#9ca3af' }
+        tickfont: { color: '#888' }
     };
 
     if (currentHours > 0 && data.timestamp.length > 0) {
@@ -369,40 +336,32 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
         xaxisConfig.autorange = true;
     }
 
-    // Dynamic grid layout positioning for Y-Axes
     const layout = {
-        paper_bgcolor: 'rgba(0,0,0,0)', 
-        plot_bgcolor: 'rgba(0,0,0,0)', 
-        font: { color: '#9ca3af', family: 'Outfit, sans-serif', size: 11 },
+        paper_bgcolor: '#121212', 
+        plot_bgcolor: '#121212', 
+        font: { color: '#999', size: 10, family: 'sans-serif' },
         showlegend: false, 
-        margin: { t: 10, l: 40, r: 15, b: 40 }, 
+        margin: { t: 20, l: 40, r: 15, b: 40 }, 
         hovermode: 'x unified',
         hoverlabel: {
-            bgcolor: '#1f2937',
-            bordercolor: '#4b5563',
-            font: { color: '#f3f4f6' }
+            bgcolor: '#1e1e1e',
+            bordercolor: '#333'
         },
         xaxis: xaxisConfig
     };
 
-    // Calculate Y domains dynamically depending on active tracks
-    // E.g., if there are 3 tracks: [0.7, 1.0], [0.35, 0.65], [0.0, 0.3]
-    const gap = 0.05;
-    const domainHeight = (1 - (gap * (totalSubplots - 1))) / totalSubplots;
+    const gap = 0.04;
+    const height = (1.0 - (gap * (totalSubplots - 1))) / totalSubplots;
 
-    activeSensors.forEach((sensor, index) => {
-        const axisSuffix = index === 0 ? '' : (index + 1);
-        const yaxisKey = 'yaxis' + axisSuffix;
-        
-        // Downward positioning: index 0 gets top row, index N gets bottom row
-        const domainStart = 1 - ((index + 1) * domainHeight) - (index * gap);
-        const domainEnd = 1 - (index * domainHeight) - (index * gap);
-        
-        layout[yaxisKey] = {
-            domain: [Math.max(0, domainStart), Math.min(1, domainEnd)],
-            gridcolor: 'rgba(255, 255, 255, 0.04)',
-            linecolor: 'rgba(255, 255, 255, 0.08)',
-            tickcolor: 'rgba(255, 255, 255, 0.2)',
+    activePlots.forEach((plot, idx) => {
+        const suffix = idx === 0 ? '' : (idx + 1);
+        const yKey = 'yaxis' + suffix;
+        const start = 1.0 - ((idx + 1) * height) - (idx * gap);
+        const end = 1.0 - (idx * height) - (idx * gap);
+
+        layout[yKey] = {
+            domain: [Math.max(0, start), Math.min(1.0, end)],
+            gridcolor: '#222',
             fixedrange: true,
             zeroline: false
         };
@@ -413,45 +372,39 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
 
 function drawEmptyChart() {
     const layout = {
-        paper_bgcolor: 'rgba(0,0,0,0)', 
-        plot_bgcolor: 'rgba(0,0,0,0)',
+        paper_bgcolor: '#121212',
+        plot_bgcolor: '#121212',
         xaxis: { visible: false },
         yaxis: { visible: false },
         annotations: [{
-            text: "No data logs found in selected range",
+            text: "Žádná data v tomto období",
             xref: "paper", yref: "paper",
             showarrow: false,
-            font: { color: '#6b7280', size: 14 }
+            font: { color: '#666', size: 12 }
         }]
     };
     Plotly.react('chart', [], layout, { responsive: true, displayModeBar: false });
 }
 
-// Initial Core Load
+// Initial script bootstrap
 async function init() {
     currentRoomName.innerText = formatRoomName(currentRoom);
     btnExport.href = `/api/export?room=${currentRoom}`;
     
-    // Load config settings
     try {
         const configRes = await fetch('/api/settings');
         const config = await configRes.json();
-        intervalSlider.value = config.interval;
+        slider.value = config.interval;
         intervalDisplay.innerText = config.interval + "s";
     } catch (err) {
-        console.error("Could not fetch configurations", err);
+        console.error(err);
     }
     
-    // Get rooms list initially
-    await loadRoomsList();
-    
-    // Initial paint
+    // Initial fetch
     await updateDashboard(true);
     
-    // Polling triggers every 10 seconds (optimized from 5 to reduce server cycles)
-    updateInterval = setInterval(() => {
-        updateDashboard(false); // background fetch, no spinner
-    }, 10000);
+    // Set periodic polling
+    updateInterval = setInterval(() => updateDashboard(false), 5000);
 }
 
 init();
