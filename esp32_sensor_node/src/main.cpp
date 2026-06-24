@@ -21,8 +21,9 @@ const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASS;
 const char* serverUrl = SERVER_URL;
 
-// Unique ID for this room (use letters, numbers, and underscores)
-const char* roomId = "bedroom"; 
+// Unique ID generated dynamically from ESP32 MAC address
+String roomIdStr;
+const char* roomId;
 
 // Time to sleep between measurements (in seconds)
 const int sleepSeconds = 60; 
@@ -42,6 +43,14 @@ void setup() {
   Serial.begin(115200);
   delay(100);
   Serial.println("\n--- ESP32 Air Quality Node starting ---");
+
+  // 0. Auto-generate unique ID from MAC address
+  uint64_t chipid = ESP.getEfuseMac();
+  char idStr[30];
+  snprintf(idStr, sizeof(idStr), "esp32_%04X%08X", (uint16_t)(chipid >> 32), (uint32_t)chipid);
+  roomIdStr = String(idStr);
+  roomId = roomIdStr.c_str();
+  Serial.printf("Device Unique ID: %s\n", roomId);
 
   // 1. Initialize BME280
   Wire.begin(I2C_SDA, I2C_SCL);
