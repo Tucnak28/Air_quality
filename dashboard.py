@@ -289,20 +289,23 @@ def sensor_loop():
     scd41 = None
     last_measure_time = 0
 
-    while scd41 is None:
-        try:
-            transceiver = LinuxI2cTransceiver('/dev/i2c-1')
-            scd41 = Scd4xI2cDevice(I2cConnection(transceiver))
-            scd41.stop_periodic_measurement()
-            time.sleep(1)
-            scd41.start_periodic_measurement()
-            print(">>> SCD41 SENSOR CONNECTED <<<")
-        except Exception as e:
-            print(f"SENSOR CONNECTION ERROR: {e}")
-            time.sleep(10)
-
     while True:
         try:
+            # Reconnect if the sensor is not currently connected
+            if scd41 is None:
+                try:
+                    transceiver = LinuxI2cTransceiver('/dev/i2c-1')
+                    scd41 = Scd4xI2cDevice(I2cConnection(transceiver))
+                    scd41.stop_periodic_measurement()
+                    time.sleep(1)
+                    scd41.start_periodic_measurement()
+                    print(">>> SCD41 SENSOR CONNECTED <<<")
+                except Exception as e:
+                    print(f"SENSOR CONNECTION ERROR: {e}")
+                    scd41 = None
+                    time.sleep(10)
+                    continue
+
             now = time.time()
             current_interval = CONFIG["interval"]
             
@@ -344,6 +347,7 @@ def sensor_loop():
                 time.sleep(1)
         except Exception as e:
             print(f"SCD41 SENSOR ERROR: {e}")
+            scd41 = None  # Force re-connection on next iteration
             time.sleep(5)
 
 # --- WEB SERVER ---
