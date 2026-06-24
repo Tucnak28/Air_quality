@@ -272,7 +272,7 @@ async function updateDashboard(forceSpinner = false) {
         const lastSeenTimeEl = document.getElementById('lastSeenTime');
         if (lastSeenTimeEl) {
             if (lastSeen) {
-                lastSeenTimeEl.innerText = `Last check-in: ${timeAgo(lastSeen)}`;
+                lastSeenTimeEl.innerText = `Last check-in: ${lastSeen}`;
             } else {
                 lastSeenTimeEl.innerText = `Last check-in: --`;
             }
