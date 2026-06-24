@@ -19,3 +19,6 @@ Thumbs.db
 *.njsproj
 *.sln
 *.swp
+
+# Local configuration
+device_names.json
