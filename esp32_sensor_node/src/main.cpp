@@ -7,12 +7,19 @@
 #include <ArduinoJson.h>
 
 // --- CONFIGURATION ---
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+#ifndef WIFI_SSID
+  #define WIFI_SSID "YOUR_WIFI_SSID"
+#endif
+#ifndef WIFI_PASS
+  #define WIFI_PASS "YOUR_WIFI_PASSWORD"
+#endif
+#ifndef SERVER_URL
+  #define SERVER_URL "http://192.168.1.100:6900/api/report"
+#endif
 
-// Server endpoint on your Raspberry Pi 4B
-// Replace with the static IP of your Raspberry Pi
-const char* serverUrl = "http://192.168.1.100:6900/api/report"; 
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASS;
+const char* serverUrl = SERVER_URL;
 
 // Unique ID for this room (use letters, numbers, and underscores)
 const char* roomId = "bedroom"; 
