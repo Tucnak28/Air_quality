@@ -17,6 +17,11 @@ DEVICE_NAMES_FILE = "device_names.json"
 
 CONFIG = { "interval": 60 }
 DEVICE_NAMES = {}
+SENSOR_STATUS = {
+    "is_warming_up": False,
+    "remaining_cycles": 0,
+    "remaining_seconds": 0
+}
 
 def load_device_names():
     global DEVICE_NAMES
@@ -91,6 +96,18 @@ def get_last_reading(room_id):
             ORDER BY timestamp DESC LIMIT 1
         ''', (room_id,))
         return cursor.fetchone()
+
+def is_sensor_warm(room_id='living_room', threshold_minutes=15):
+    last = get_last_reading(room_id)
+    if last is None:
+        return False
+    try:
+        last_time = datetime.strptime(last["timestamp"], "%Y-%m-%d %H:%M:%S")
+        elapsed_seconds = (datetime.now() - last_time).total_seconds()
+        return elapsed_seconds < threshold_minutes * 60
+    except Exception as e:
+        print(f"Chyba při vyhodnocování stavu senzoru: {e}")
+        return False
 
 # Deadband Filter: Vrací True, pokud by se hodnota měla uložit
 def should_save_reading(room_id, co2, temp, hum, pressure=None, max_interval_minutes=15):
@@ -222,8 +239,12 @@ def clear_room_history(room_id):
 
 # --- MĚŘÍCÍ VLÁKNO (LOKÁLNÍ SENZOR SCD41) ---
 def sensor_loop():
+    global SENSOR_STATUS
     if Scd4xI2cDevice is None:
         print("--- MĚŘÍCÍ VLÁKNO SPUŠTĚNO V SIMULAČNÍM MÓDU (Chybí HW) ---")
+        SENSOR_STATUS["is_warming_up"] = False
+        SENSOR_STATUS["remaining_cycles"] = 0
+        SENSOR_STATUS["remaining_seconds"] = 0
         # Simulátor pro vývoj
         import random
         sim_co2 = 600
@@ -248,7 +269,21 @@ def sensor_loop():
         return
 
     print("--- STARTUJI MĚŘÍCÍ VLÁKNO PRO SCD41 ---")
-    measurements_taken = 0
+    
+    # Rozhodnutí o přeskočení zahřívací fáze na základě posledního záznamu v DB
+    if is_sensor_warm('living_room', threshold_minutes=15):
+        print(">>> Senzor SCD41 je pravděpodobně stále zahřátý (poslední záznam v DB je novější než 15 minut). Přeskakuji zahřívací fázi. <<<")
+        measurements_taken = SKIP_FIRST_N
+        SENSOR_STATUS["is_warming_up"] = False
+        SENSOR_STATUS["remaining_cycles"] = 0
+        SENSOR_STATUS["remaining_seconds"] = 0
+    else:
+        print(">>> Spouštím plnou zahřívací fázi (6 minut) senzoru SCD41. <<<")
+        measurements_taken = 0
+        SENSOR_STATUS["is_warming_up"] = True
+        SENSOR_STATUS["remaining_cycles"] = SKIP_FIRST_N
+        SENSOR_STATUS["remaining_seconds"] = SKIP_FIRST_N * CONFIG["interval"]
+
     scd41 = None
     last_measure_time = 0
 
@@ -280,8 +315,15 @@ def sensor_loop():
                     # LOGIKA ZAHŘÍVÁNÍ
                     if measurements_taken < SKIP_FIRST_N:
                         measurements_taken += 1
+                        remaining = SKIP_FIRST_N - measurements_taken
+                        SENSOR_STATUS["is_warming_up"] = remaining > 0
+                        SENSOR_STATUS["remaining_cycles"] = remaining
+                        SENSOR_STATUS["remaining_seconds"] = remaining * current_interval
                         print(f"ZAHŘÍVÁNÍ SCD41 ({measurements_taken}/{SKIP_FIRST_N}): CO2: {co2:.0f} | T: {temp:.1f} | H: {hum:.1f}")
                     else:
+                        SENSOR_STATUS["is_warming_up"] = False
+                        SENSOR_STATUS["remaining_cycles"] = 0
+                        SENSOR_STATUS["remaining_seconds"] = 0
                         print(f"MĚŘENO SCD41: CO2: {co2:.0f} ppm | T: {temp:.1f} | H: {hum:.1f} (Int: {current_interval}s)")
                         # Použijeme deadband filtr před zápisem do DB
                         if should_save_reading('living_room', co2, temp, hum):
@@ -311,7 +353,11 @@ def api_data():
     room_id = request.args.get('room', 'living_room')
     hours = float(request.args.get('hours', 168))
     # Načteme historii s downsamplingem na max 500 bodů
-    return jsonify(get_history(hours=hours, room_id=room_id, max_points=500))
+    data = get_history(hours=hours, room_id=room_id, max_points=500)
+    data["is_warming_up"] = (room_id == 'living_room' and SENSOR_STATUS["is_warming_up"])
+    data["remaining_cycles"] = SENSOR_STATUS["remaining_cycles"] if room_id == 'living_room' else 0
+    data["remaining_seconds"] = SENSOR_STATUS["remaining_seconds"] if room_id == 'living_room' else 0
+    return jsonify(data)
 
 # Seznam aktivních místností s časem poslední aktivity
 @app.route('/api/rooms')
@@ -331,11 +377,16 @@ def api_rooms():
     result = []
     for r_id, last_seen in rooms_data.items():
         display_name = DEVICE_NAMES.get(r_id, r_id.replace('_', ' ').title())
-        result.append({
+        room_info = {
             "id": r_id,
             "name": display_name,
             "last_seen": last_seen
-        })
+        }
+        if r_id == 'living_room':
+            room_info["is_warming_up"] = SENSOR_STATUS["is_warming_up"]
+            room_info["remaining_cycles"] = SENSOR_STATUS["remaining_cycles"]
+            room_info["remaining_seconds"] = SENSOR_STATUS["remaining_seconds"]
+        result.append(room_info)
     return jsonify(result)
 
 # Endpoint pro přejmenování místnosti

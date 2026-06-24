@@ -64,11 +64,21 @@ function closeDrawer() {
 }
 
 // Set Connection status
-function setStatus(online) {
-    if (online) {
-        statusIndicator.classList.remove('offline');
-    } else {
+function setStatus(online, isWarmingUp = false, remainingSec = 0) {
+    statusIndicator.classList.remove('offline', 'warming-up');
+    const label = document.getElementById('statusLabel');
+    
+    if (!online) {
         statusIndicator.classList.add('offline');
+        if (label) label.innerText = 'Offline';
+    } else if (isWarmingUp) {
+        statusIndicator.classList.add('warming-up');
+        if (label) {
+            const min = Math.ceil(remainingSec / 60);
+            label.innerText = `Zahřívání (${min}m)`;
+        }
+    } else {
+        if (label) label.innerText = 'Online';
     }
 }
 
@@ -132,19 +142,36 @@ async function loadRoomsList() {
             const diffMin = Math.floor((new Date().getTime() - lastSeenDate.getTime()) / 60000);
             const isActive = diffMin < 5; // 5 min threshold for sleep nodes
 
+            const isWarmingUp = room.is_warming_up || false;
+            const remainingSec = room.remaining_seconds || 0;
+
             const dot = document.createElement('span');
             dot.style.width = '8px';
             dot.style.height = '8px';
             dot.style.borderRadius = '50%';
-            dot.style.backgroundColor = isActive ? '#4dff88' : '#666';
-            if (isActive) {
-                dot.style.boxShadow = '0 0 6px #4dff88';
+            
+            if (isWarmingUp) {
+                dot.style.backgroundColor = '#ffb84d';
+                dot.style.boxShadow = '0 0 6px #ffb84d';
+            } else {
+                dot.style.backgroundColor = isActive ? '#4dff88' : '#666';
+                if (isActive) {
+                    dot.style.boxShadow = '0 0 6px #4dff88';
+                }
             }
 
             // Clickable text item to switch active dashboard room
             const btn = document.createElement('div');
             btn.className = `room-item-btn`;
-            btn.innerHTML = `${room.name} <span style="font-size: 0.7rem; color: #555; font-weight: normal; margin-left: 4px;">(${timeAgo(room.last_seen)})</span>`;
+            
+            let statusText = timeAgo(room.last_seen);
+            let statusStyle = 'font-size: 0.7rem; color: #555; font-weight: normal; margin-left: 4px;';
+            if (isWarmingUp) {
+                const min = Math.ceil(remainingSec / 60);
+                statusText = `Zahřívání ${min}m`;
+                statusStyle = 'font-size: 0.7rem; color: #ffb84d; font-weight: 500; margin-left: 4px;';
+            }
+            btn.innerHTML = `${room.name} <span style="${statusStyle}">(${statusText})</span>`;
             btn.style.flex = '1';
             btn.style.padding = '6px 4px';
             btn.style.cursor = 'pointer';
@@ -235,7 +262,9 @@ async function updateDashboard(forceSpinner = false) {
     try {
         const res = await fetch(`/api/data?room=${currentRoom}&hours=${currentHours}`);
         const data = await res.json();
-        setStatus(true);
+        const isWarmingUp = data.is_warming_up || false;
+        const remainingSec = data.remaining_seconds || 0;
+        setStatus(true, isWarmingUp, remainingSec);
         
         const length = data.timestamp ? data.timestamp.length : 0;
         

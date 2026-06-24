@@ -84,11 +84,43 @@ body {
     background-color: #4dff88;
     border-radius: 50%;
     display: inline-block;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, box-shadow 0.2s;
+    box-shadow: 0 0 6px #4dff88;
 }
 
 .status-indicator.offline .status-dot {
     background-color: #ff4d4d;
+    box-shadow: 0 0 6px #ff4d4d;
+}
+
+.status-indicator.warming-up .status-dot {
+    background-color: #ffb84d;
+    box-shadow: 0 0 8px #ffb84d;
+    animation: status-pulse 1.5s infinite ease-in-out;
+}
+
+.status-label {
+    margin-left: 8px;
+    font-size: 0.72rem;
+    color: #888;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+}
+
+.status-indicator.warming-up .status-label {
+    color: #ffb84d;
+}
+
+.status-indicator.offline .status-label {
+    color: #ff4d4d;
+}
+
+@keyframes status-pulse {
+    0% { opacity: 0.4; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 0.4; transform: scale(0.9); }
 }
 
 /* HEADER / CONTROL PANEL SECTION */
