@@ -75,7 +75,7 @@ function setStatus(online, isWarmingUp = false, remainingSec = 0) {
         statusIndicator.classList.add('warming-up');
         if (label) {
             const min = Math.ceil(remainingSec / 60);
-            label.innerText = `Zahřívání (${min}m)`;
+            label.innerText = `Warming up (${min}m)`;
         }
     } else {
         if (label) label.innerText = 'Online';
@@ -168,7 +168,7 @@ async function loadRoomsList() {
             let statusStyle = 'font-size: 0.7rem; color: #555; font-weight: normal; margin-left: 4px;';
             if (isWarmingUp) {
                 const min = Math.ceil(remainingSec / 60);
-                statusText = `Zahřívání ${min}m`;
+                statusText = `Warming up ${min}m`;
                 statusStyle = 'font-size: 0.7rem; color: #ffb84d; font-weight: 500; margin-left: 4px;';
             }
             btn.innerHTML = `${room.name} <span style="${statusStyle}">(${statusText})</span>`;
@@ -196,10 +196,10 @@ async function loadRoomsList() {
             renameBtn.style.fontSize = '0.75rem';
             renameBtn.style.padding = '6px';
             renameBtn.style.opacity = '0.6';
-            renameBtn.title = "Přejmenovat";
+            renameBtn.title = "Rename";
             renameBtn.onclick = async (e) => {
                 e.stopPropagation();
-                const newName = prompt(`Zadej nový název pro místnost "${room.name}":`, room.name);
+                const newName = prompt(`Enter new name for room "${room.name}":`, room.name);
                 if (newName && newName.trim() !== "") {
                     try {
                         await fetch('/api/rename', {
@@ -502,7 +502,7 @@ function drawEmptyChart() {
         xaxis: { visible: false },
         yaxis: { visible: false },
         annotations: [{
-            text: "Žádná data v tomto období",
+            text: "No data in this period",
             xref: "paper", yref: "paper",
             showarrow: false,
             font: { color: '#666', size: 12 }

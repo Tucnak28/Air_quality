@@ -2,37 +2,37 @@ import smbus2
 import bme280
 import time
 
-# Nastavení I2C
+# I2C Settings
 port = 1
-address = 0x76 # ZMĚŇ NA 0x77, POKUD TI i2cdetect UKÁZAL 77!
+address = 0x76 # CHANGE TO 0x77 IF i2cdetect SHOWS 77!
 
-# Inicializace sběrnice
+# Initialize bus
 bus = smbus2.SMBus(port)
 
-# Senzor BME280 vyžaduje načtení kalibračních dat přímo z jeho čipu
+# BME280 sensor requires loading calibration parameters directly from the chip
 try:
     calibration_params = bme280.load_calibration_params(bus, address)
 except Exception as e:
-    print(f"Chyba při komunikaci se senzorem: {e}")
+    print(f"Error communicating with sensor: {e}")
     exit()
 
-print("Měření spuštěno... (Zastavíš pomocí Ctrl+C)")
+print("Measurement started... (Stop with Ctrl+C)")
 print("=" * 30)
 
 try:
     while True:
-        # Přečtení dat (vše najednou)
+        # Read data (all at once)
         data = bme280.sample(bus, address, calibration_params)
 
-        # Výpis dat do terminálu s formátováním na 2 desetinná místa
-        print(f"Teplota: {data.temperature:.2f} °C")
-        print(f"Vlhkost: {data.humidity:.2f} %")
-        print(f"Tlak:    {data.pressure:.2f} hPa")
+        # Output data to terminal formatted to 2 decimal places
+        print(f"Temperature: {data.temperature:.2f} °C")
+        print(f"Humidity:    {data.humidity:.2f} %")
+        print(f"Pressure:    {data.pressure:.2f} hPa")
         print("-" * 30)
         
-        # Program počká 2 sekundy, než změří další hodnoty
+        # Wait 2 seconds before next measurement
         time.sleep(2)
 
 except KeyboardInterrupt:
-    # Tento blok zachytí, když zmáčkneš Ctrl+C
-    print("\nKonec měření. Měj se!")
+    # This block catches Ctrl+C
+    print("\nMeasurement ended. Goodbye!")
