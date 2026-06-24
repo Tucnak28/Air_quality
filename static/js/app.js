@@ -424,6 +424,27 @@ function toLocalISOString(dateObj) {
     return localTime.toISOString().slice(0, 19); 
 }
 
+// Calculates centered moving average for smoothing spiky graphs
+function movingAverage(arr, windowSize = 5) {
+    const result = [];
+    for (let i = 0; i < arr.length; i++) {
+        let sum = 0;
+        let count = 0;
+        const half = Math.floor(windowSize / 2);
+        const start = Math.max(0, i - half);
+        const end = Math.min(arr.length - 1, i + half);
+        
+        for (let j = start; j <= end; j++) {
+            if (arr[j] !== null && arr[j] !== undefined) {
+                sum += arr[j];
+                count++;
+            }
+        }
+        result.push(count > 0 ? sum / count : null);
+    }
+    return result;
+}
+
 // Renders single trace graph
 function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
     // Fallback if the selected metric is not available in the current room
@@ -459,8 +480,15 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
         return;
     }
 
+    // Apply moving average smoothing if checkbox is toggled checked
+    const chkSmooth = document.getElementById('chkSmooth');
+    let yData = data[currentMetric];
+    if (chkSmooth && chkSmooth.checked) {
+        yData = movingAverage(yData, 5);
+    }
+
     // Calculate 10% padding above and below active data points
-    const values = data[currentMetric].filter(v => v !== null && v !== undefined);
+    const values = yData.filter(v => v !== null && v !== undefined);
     let yRange = null;
     if (values.length > 0) {
         const minVal = Math.min(...values);
@@ -475,7 +503,7 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
 
     const trace = {
         x: data.timestamp,
-        y: data[currentMetric],
+        y: yData,
         name: activeConfig.name,
         mode: 'lines+markers',
         type: 'scatter',
@@ -552,6 +580,14 @@ async function init() {
     await loadRoomsList();
     currentRoomName.innerText = activeRoomNameMap[currentRoom] || formatRoomName(currentRoom);
     btnExport.href = `/api/export?room=${currentRoom}`;
+    
+    // Bind Smooth Checkbox
+    const chkSmooth = document.getElementById('chkSmooth');
+    if (chkSmooth) {
+        chkSmooth.onchange = function() {
+            updateDashboard(false);
+        };
+    }
     
     // Initial fetch
     await updateDashboard(true);
