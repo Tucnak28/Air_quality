@@ -4,6 +4,8 @@ import threading
 import sys
 import csv
 import io
+import json
+import os
 from flask import Flask, render_template, jsonify, request, Response
 from datetime import datetime, timedelta
 
@@ -11,8 +13,32 @@ from datetime import datetime, timedelta
 DB_FILE = "air_quality.db"
 PORT = 6900
 SKIP_FIRST_N = 6  # 6 cyklů * 60s = 6 minut stabilizace
+DEVICE_NAMES_FILE = "device_names.json"
 
 CONFIG = { "interval": 60 }
+DEVICE_NAMES = {}
+
+def load_device_names():
+    global DEVICE_NAMES
+    if os.path.exists(DEVICE_NAMES_FILE):
+        try:
+            with open(DEVICE_NAMES_FILE, 'r', encoding='utf-8') as f:
+                DEVICE_NAMES = json.load(f)
+        except Exception as e:
+            print(f"Chyba při načítání device_names.json: {e}")
+            DEVICE_NAMES = {}
+    else:
+        DEVICE_NAMES = {"living_room": "Living Room"}
+        save_device_names()
+
+def save_device_names():
+    try:
+        with open(DEVICE_NAMES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(DEVICE_NAMES, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Chyba při ukládání device_names.json: {e}")
+
+load_device_names()
 
 # --- IMPORT KNIHOVEN SENSORU ---
 try:
@@ -298,7 +324,27 @@ def api_rooms():
     # Výchozí místnost musí být vždy v seznamu
     if 'living_room' not in rooms:
         rooms.insert(0, 'living_room')
-    return jsonify(rooms)
+        
+    result = []
+    for r in rooms:
+        display_name = DEVICE_NAMES.get(r, r.replace('_', ' ').title())
+        result.append({"id": r, "name": display_name})
+    return jsonify(result)
+
+# Endpoint pro přejmenování místnosti
+@app.route('/api/rename', methods=['POST'])
+def api_rename():
+    data = request.json
+    if not data or 'id' not in data or 'name' not in data:
+        return jsonify({"error": "Chybí 'id' nebo 'name' v požadavku."}), 400
+        
+    device_id = data['id']
+    new_name = data['name']
+    
+    DEVICE_NAMES[device_id] = new_name
+    save_device_names()
+    print(f"Zařízení '{device_id}' přejmenováno na '{new_name}'")
+    return jsonify({"status": "success"})
 
 # --- UNIVERZÁLNÍ KONEKTOR PRO ZAŘÍZENÍ (ESP32 atd.) ---
 @app.route('/api/report', methods=['POST'])

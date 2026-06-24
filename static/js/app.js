@@ -81,6 +81,9 @@ function formatRoomName(id) {
         .join(' ');
 }
 
+// Format mapping
+let activeRoomNameMap = {"living_room": "Living Room"};
+
 // Load Rooms list
 async function loadRoomsList() {
     try {
@@ -89,18 +92,80 @@ async function loadRoomsList() {
         setStatus(true);
         
         roomList.innerHTML = '';
+        activeRoomNameMap = {};
+        
         rooms.forEach(room => {
+            activeRoomNameMap[room.id] = room.name;
+            
+            // Container representing the list row item
+            const itemContainer = document.createElement('div');
+            itemContainer.style.display = 'flex';
+            itemContainer.style.alignItems = 'center';
+            itemContainer.style.justifyContent = 'space-between';
+            itemContainer.style.background = '#252525';
+            itemContainer.style.border = '1px solid #333';
+            itemContainer.style.borderRadius = '6px';
+            itemContainer.style.padding = '2px 8px';
+            itemContainer.style.gap = '6px';
+            
+            if (room.id === currentRoom) {
+                itemContainer.style.borderColor = '#4da6ff';
+            }
+
+            // Clickable text item to switch active dashboard room
             const btn = document.createElement('div');
-            btn.className = `room-item ${room === currentRoom ? 'active' : ''}`;
-            btn.innerText = formatRoomName(room);
+            btn.className = `room-item-btn`;
+            btn.innerText = room.name;
+            btn.style.flex = '1';
+            btn.style.padding = '8px 4px';
+            btn.style.cursor = 'pointer';
+            btn.style.fontSize = '0.85rem';
+            btn.style.fontWeight = '600';
+            btn.style.color = room.id === currentRoom ? '#fff' : '#aaa';
+            
             btn.onclick = () => {
-                currentRoom = room;
-                currentRoomName.innerText = formatRoomName(room);
-                btnExport.href = `/api/export?room=${room}`;
+                currentRoom = room.id;
+                currentRoomName.innerText = room.name;
+                btnExport.href = `/api/export?room=${room.id}`;
                 closeDrawer();
                 updateDashboard(true);
             };
-            roomList.appendChild(btn);
+
+            // Pencil edit icon button to rename aliases dynamically
+            const renameBtn = document.createElement('button');
+            renameBtn.innerHTML = '✏️';
+            renameBtn.style.background = 'none';
+            renameBtn.style.border = 'none';
+            renameBtn.style.cursor = 'pointer';
+            renameBtn.style.fontSize = '0.75rem';
+            renameBtn.style.padding = '6px';
+            renameBtn.style.opacity = '0.6';
+            renameBtn.title = "Přejmenovat";
+            renameBtn.onclick = async (e) => {
+                e.stopPropagation();
+                const newName = prompt(`Zadej nový název pro místnost "${room.name}":`, room.name);
+                if (newName && newName.trim() !== "") {
+                    try {
+                        await fetch('/api/rename', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({id: room.id, name: newName.trim()})
+                        });
+                        if (currentRoom === room.id) {
+                            currentRoomName.innerText = newName.trim();
+                        }
+                        loadRoomsList();
+                    } catch (err) {
+                        console.error(err);
+                    }
+                }
+            };
+            renameBtn.onmouseenter = () => { renameBtn.style.opacity = '1'; };
+            renameBtn.onmouseleave = () => { renameBtn.style.opacity = '0.6'; };
+
+            itemContainer.appendChild(btn);
+            itemContainer.appendChild(renameBtn);
+            roomList.appendChild(itemContainer);
         });
     } catch (err) {
         console.error(err);
@@ -138,7 +203,8 @@ slider.onchange = async function() {
 
 // Reset settings
 btnReset.onclick = async function() {
-    if (confirm(`Smazat veškerou historii pro místnost "${formatRoomName(currentRoom)}"?`)) {
+    const displayName = activeRoomNameMap[currentRoom] || formatRoomName(currentRoom);
+    if (confirm(`Smazat veškerou historii pro místnost "${displayName}"?`)) {
         try {
             await fetch(`/api/reset?room=${currentRoom}`, { method: 'POST' });
             updateDashboard(true);
@@ -404,17 +470,7 @@ function drawEmptyChart() {
 
 // Initial script bootstrap
 async function init() {
-    currentRoomName.innerText = formatRoomName(currentRoom);
-    btnExport.href = `/api/export?room=${currentRoom}`;
-    
-    // Bind Metric Tabs
-    document.querySelectorAll('.btn-metric').forEach(btn => {
-        btn.onclick = function() {
-            currentMetric = this.dataset.metric;
-            updateDashboard(true);
-        };
-    });
-    
+    // Load config settings
     try {
         const configRes = await fetch('/api/settings');
         const config = await configRes.json();
@@ -423,6 +479,19 @@ async function init() {
     } catch (err) {
         console.error(err);
     }
+
+    // Bind Metric Tabs
+    document.querySelectorAll('.btn-metric').forEach(btn => {
+        btn.onclick = function() {
+            currentMetric = this.dataset.metric;
+            updateDashboard(true);
+        };
+    });
+
+    // Load rooms mapping lists first to resolve display title name correctly on boot
+    await loadRoomsList();
+    currentRoomName.innerText = activeRoomNameMap[currentRoom] || formatRoomName(currentRoom);
+    btnExport.href = `/api/export?room=${currentRoom}`;
     
     // Initial fetch
     await updateDashboard(true);
