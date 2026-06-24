@@ -490,6 +490,12 @@ input[type=range] {
     border-color: #4da6ff;
 }
 
+.drawer-footer {
+    padding: 16px 12px;
+    border-top: 1px solid #333;
+    background: #1e1e1e;
+}
+
 .drawer-overlay {
     position: fixed;
     top: 0;

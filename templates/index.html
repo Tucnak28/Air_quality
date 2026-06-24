@@ -83,14 +83,6 @@
                 <button class="btn-time" data-minutes="1440">24h</button>
                 <button class="btn-time active" data-minutes="0">All</button>
             </div>
-
-            <!-- Bottom Settings Card -->
-            <div class="bottom-controls">
-                <div class="action-row">
-                    <a href="#" id="btnExport" class="btn-action btn-csv">CSV</a>
-                    <button id="btnReset" class="btn-action btn-reset">Delete Room</button>
-                </div>
-            </div>
         </div>
     </div>
 
@@ -118,6 +110,12 @@
         </div>
         <div class="drawer-body" id="roomList">
             <!-- Dynamically populated room items -->
+        </div>
+        <div class="drawer-footer">
+            <div class="action-row">
+                <a href="#" id="btnExport" class="btn-action btn-csv">Export CSV</a>
+                <button id="btnReset" class="btn-action btn-reset">Delete Room</button>
+            </div>
         </div>
     </div>
     <!-- Drawer Overlay -->
