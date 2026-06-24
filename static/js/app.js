@@ -1,6 +1,6 @@
 // State Management
 let currentRoom = 'living_room';
-let currentHours = 24; // default to 24 (1D)
+let currentHours = 1; // default to 1 (1H)
 let currentMetric = 'co2'; // default metric to plot
 let updateInterval = null;
 
