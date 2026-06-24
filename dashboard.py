@@ -357,8 +357,22 @@ def index():
 def api_data():
     room_id = request.args.get('room', 'living_room')
     hours = float(request.args.get('hours', 168))
-    # Load history with downsampling to max 500 points
-    data = get_history(hours=hours, room_id=room_id, max_points=500)
+    
+    # Dynamic downsampling based on timeframe (matching broker-style resolutions)
+    if hours == 0:
+        max_points = 365         # ALL: daily/weekly resolution (smooth long-term)
+    elif hours <= 1.0:
+        max_points = 60          # 1H: raw data (1 min intervals)
+    elif hours <= 24.0:
+        max_points = 144         # 1D: 10 min averages (144 points total)
+    elif hours <= 168.0:
+        max_points = 168         # 1W: 1 hour averages (168 points total)
+    elif hours <= 720.0:
+        max_points = 180         # 1M: 4 hour averages (180 points total)
+    else:
+        max_points = 300
+        
+    data = get_history(hours=hours, room_id=room_id, max_points=max_points)
     data["is_warming_up"] = (room_id == 'living_room' and SENSOR_STATUS["is_warming_up"])
     data["remaining_cycles"] = SENSOR_STATUS["remaining_cycles"] if room_id == 'living_room' else 0
     data["remaining_seconds"] = SENSOR_STATUS["remaining_seconds"] if room_id == 'living_room' else 0
