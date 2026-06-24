@@ -1,6 +1,7 @@
 // State Management
 let currentRoom = 'living_room';
 let currentHours = 168; // default to 168 (All)
+let currentMetric = 'co2'; // default metric to plot
 let updateInterval = null;
 
 // DOM Elements
@@ -291,35 +292,50 @@ function toLocalISOString(dateObj) {
     return localTime.toISOString().slice(0, 19); 
 }
 
-// Renders Graph using clean classic dark grids
+// Renders single trace graph
 function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
-    const traces = [];
-    const activePlots = [];
+    // Fallback if the selected metric is not available in the current room
+    let metric = currentMetric;
+    if (metric === 'co2' && !hasCo2) metric = hasTemp ? 'temp' : (hasHum ? 'hum' : 'pressure');
+    if (metric === 'temp' && !hasTemp) metric = hasCo2 ? 'co2' : (hasHum ? 'hum' : 'pressure');
+    if (metric === 'hum' && !hasHum) metric = hasCo2 ? 'co2' : (hasTemp ? 'temp' : 'pressure');
+    if (metric === 'pressure' && !hasPress) metric = hasCo2 ? 'co2' : (hasTemp ? 'temp' : 'hum');
     
-    if (hasCo2) activePlots.push({ key: 'co2', name: 'CO2', color: '#ff4d4d' });
-    if (hasTemp) activePlots.push({ key: 'temp', name: 'Temp', color: '#4da6ff' });
-    if (hasHum) activePlots.push({ key: 'hum', name: 'Hum', color: '#4dff88' });
-    if (hasPress) activePlots.push({ key: 'pressure', name: 'Pressure', color: '#ffb84d' });
+    currentMetric = metric;
 
-    const totalSubplots = activePlots.length;
-    if (totalSubplots === 0) {
+    // Toggle button active styling & visibility
+    document.querySelectorAll('.btn-metric').forEach(btn => {
+        const m = btn.dataset.metric;
+        btn.classList.toggle('active', m === currentMetric);
+        
+        if (m === 'co2') btn.style.display = hasCo2 ? 'inline-block' : 'none';
+        if (m === 'temp') btn.style.display = hasTemp ? 'inline-block' : 'none';
+        if (m === 'hum') btn.style.display = hasHum ? 'inline-block' : 'none';
+        if (m === 'pressure') btn.style.display = hasPress ? 'inline-block' : 'none';
+    });
+
+    const configs = {
+        co2: { name: 'CO2', color: '#ff4d4d', unit: 'ppm' },
+        temp: { name: 'Teplota', color: '#4da6ff', unit: '°C' },
+        hum: { name: 'Vlhkost', color: '#4dff88', unit: '%' },
+        pressure: { name: 'Tlak', color: '#ffb84d', unit: 'hPa' }
+    };
+
+    const activeConfig = configs[currentMetric];
+    if (!activeConfig || !data[currentMetric]) {
         drawEmptyChart();
         return;
     }
 
-    activePlots.forEach((plot, idx) => {
-        const suffix = idx === 0 ? '' : (idx + 1);
-        traces.push({
-            x: data.timestamp,
-            y: data[plot.key],
-            name: plot.name,
-            mode: 'lines+markers',
-            type: 'scatter',
-            line: { color: plot.color, width: 2 },
-            marker: { size: 3 },
-            yaxis: 'y' + suffix
-        });
-    });
+    const trace = {
+        x: data.timestamp,
+        y: data[currentMetric],
+        name: activeConfig.name,
+        mode: 'lines+markers',
+        type: 'scatter',
+        line: { color: activeConfig.color, width: 2 },
+        marker: { size: 3 }
+    };
 
     let xaxisConfig = { 
         type: 'date', 
@@ -341,33 +357,22 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
         plot_bgcolor: '#121212', 
         font: { color: '#999', size: 10, family: 'sans-serif' },
         showlegend: false, 
-        margin: { t: 20, l: 40, r: 15, b: 40 }, 
+        margin: { t: 20, l: 45, r: 15, b: 40 }, 
         hovermode: 'x unified',
         hoverlabel: {
             bgcolor: '#1e1e1e',
             bordercolor: '#333'
         },
-        xaxis: xaxisConfig
-    };
-
-    const gap = 0.04;
-    const height = (1.0 - (gap * (totalSubplots - 1))) / totalSubplots;
-
-    activePlots.forEach((plot, idx) => {
-        const suffix = idx === 0 ? '' : (idx + 1);
-        const yKey = 'yaxis' + suffix;
-        const start = 1.0 - ((idx + 1) * height) - (idx * gap);
-        const end = 1.0 - (idx * height) - (idx * gap);
-
-        layout[yKey] = {
-            domain: [Math.max(0, start), Math.min(1.0, end)],
+        xaxis: xaxisConfig,
+        yaxis: {
             gridcolor: '#222',
             fixedrange: true,
-            zeroline: false
-        };
-    });
+            zeroline: false,
+            title: activeConfig.unit
+        }
+    };
 
-    Plotly.react('chart', traces, layout, { responsive: true, displayModeBar: false });
+    Plotly.react('chart', [trace], layout, { responsive: true, displayModeBar: false });
 }
 
 function drawEmptyChart() {
@@ -390,6 +395,14 @@ function drawEmptyChart() {
 async function init() {
     currentRoomName.innerText = formatRoomName(currentRoom);
     btnExport.href = `/api/export?room=${currentRoom}`;
+    
+    // Bind Metric Tabs
+    document.querySelectorAll('.btn-metric').forEach(btn => {
+        btn.onclick = function() {
+            currentMetric = this.dataset.metric;
+            updateDashboard(true);
+        };
+    });
     
     try {
         const configRes = await fetch('/api/settings');

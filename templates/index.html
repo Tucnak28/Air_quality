@@ -99,6 +99,14 @@
 
     <!-- Right Panel (Graph Section - Fills remaining space) -->
     <div class="graph-section">
+        <div class="chart-header-row">
+            <div class="metric-selector" id="metricSelector">
+                <button class="btn-metric active" data-metric="co2">CO2</button>
+                <button class="btn-metric" data-metric="temp">Temp</button>
+                <button class="btn-metric" data-metric="hum">Hum</button>
+                <button class="btn-metric" data-metric="pressure">Pressure</button>
+            </div>
+        </div>
         <div id="chart"></div>
         <div class="chart-loader" id="chartLoader">
             <span class="loader-spinner"></span>
