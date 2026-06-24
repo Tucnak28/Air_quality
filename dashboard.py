@@ -17,6 +17,7 @@ DEVICE_NAMES_FILE = "device_names.json"
 
 CONFIG = { "interval": 60 }
 DEVICE_NAMES = {}
+DEVICE_LAST_SEEN = {}
 SENSOR_STATUS = {
     "is_warming_up": False,
     "remaining_cycles": 0,
@@ -259,6 +260,7 @@ def sensor_loop():
                 sim_hum += random.uniform(-1.0, 1.0)
                 sim_hum = max(20, min(80, sim_hum))
                 
+                DEVICE_LAST_SEEN['living_room'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 if should_save_reading('living_room', sim_co2, sim_temp, sim_hum):
                     save_reading('living_room', sim_co2, sim_temp, sim_hum)
                     print(f"[Simulator] Measured & Saved: CO2: {sim_co2:.0f} ppm | T: {sim_temp:.1f} °C | H: {sim_hum:.1f} %")
@@ -311,6 +313,9 @@ def sensor_loop():
                     co2 = co2_obj.co2
                     temp = temp_obj.degrees_celsius
                     hum = hum_obj.percent_rh
+                    
+                    # Update local sensor network contact timestamp
+                    DEVICE_LAST_SEEN['living_room'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
                     # WARM-UP LOGIC
                     if measurements_taken < SKIP_FIRST_N:
@@ -375,7 +380,9 @@ def api_rooms():
         rooms_data['living_room'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
     result = []
-    for r_id, last_seen in rooms_data.items():
+    for r_id, db_last_seen in rooms_data.items():
+        # Prefer the actual network contact timestamp if available
+        last_seen = DEVICE_LAST_SEEN.get(r_id, db_last_seen)
         display_name = DEVICE_NAMES.get(r_id, r_id.replace('_', ' ').title())
         room_info = {
             "id": r_id,
@@ -412,6 +419,7 @@ def api_report():
         return jsonify({"error": "Missing 'room_id' in request payload."}), 400
         
     room_id = data['room_id']
+    DEVICE_LAST_SEEN[room_id] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     co2 = data.get('co2')
     temp = data.get('temp')
     hum = data.get('hum')
