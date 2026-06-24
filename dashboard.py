@@ -238,6 +238,73 @@ def clear_room_history(room_id):
         cursor.execute('DELETE FROM readings WHERE room_id = ?', (room_id,))
         conn.commit()
 
+def cleanup_redundant_readings(max_age_minutes=10):
+    threshold_time = (datetime.now() - timedelta(minutes=max_age_minutes)).strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('SELECT DISTINCT room_id FROM readings')
+            rooms = [row['room_id'] for row in cursor.fetchall() if row['room_id']]
+            
+            ids_to_delete = []
+            
+            for r_id in rooms:
+                cursor.execute('''
+                    SELECT id, timestamp, co2, temp, hum, pressure 
+                    FROM readings 
+                    WHERE room_id = ? 
+                    ORDER BY timestamp ASC
+                ''', (r_id,))
+                rows = cursor.fetchall()
+                
+                if len(rows) < 3:
+                    continue
+                    
+                for i in range(1, len(rows) - 1):
+                    prev_row = rows[i-1]
+                    curr_row = rows[i]
+                    next_row = rows[i+1]
+                    
+                    if curr_row['timestamp'] >= threshold_time:
+                        continue
+                    
+                    def is_redundant_val(prev_v, curr_v, next_v, threshold):
+                        if prev_v is None and curr_v is None and next_v is None:
+                            return True
+                        if prev_v is None or curr_v is None or next_v is None:
+                            return False
+                        return abs(curr_v - prev_v) < threshold and abs(next_v - curr_v) < threshold
+                    
+                    co2_red = is_redundant_val(prev_row['co2'], curr_row['co2'], next_row['co2'], 15.0)
+                    temp_red = is_redundant_val(prev_row['temp'], curr_row['temp'], next_row['temp'], 0.15)
+                    hum_red = is_redundant_val(prev_row['hum'], curr_row['hum'], next_row['hum'], 1.0)
+                    press_red = is_redundant_val(prev_row['pressure'], curr_row['pressure'], next_row['pressure'], 0.5)
+                    
+                    if co2_red and temp_red and hum_red and press_red:
+                        ids_to_delete.append(curr_row['id'])
+            
+            if ids_to_delete:
+                chunk_size = 500
+                for i in range(0, len(ids_to_delete), chunk_size):
+                    chunk = ids_to_delete[i:i+chunk_size]
+                    cursor.execute(f"DELETE FROM readings WHERE id IN ({','.join(['?']*len(chunk))})", chunk)
+                conn.commit()
+                print(f"Cleaned up {len(ids_to_delete)} redundant readings older than {max_age_minutes} minutes.")
+    except Exception as e:
+        print(f"Error cleaning up redundant readings: {e}")
+
+def cleanup_loop():
+    time.sleep(5)
+    cleanup_redundant_readings(max_age_minutes=10)
+    while True:
+        try:
+            time.sleep(600)  # Run every 10 minutes
+            cleanup_redundant_readings(max_age_minutes=10)
+        except Exception as e:
+            print(f"Error in cleanup loop: {e}")
+
 # --- MEASUREMENT THREAD (LOCAL SCD41 SENSOR) ---
 def sensor_loop():
     global SENSOR_STATUS
@@ -261,11 +328,8 @@ def sensor_loop():
                 sim_hum = max(20, min(80, sim_hum))
                 
                 DEVICE_LAST_SEEN['living_room'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                if should_save_reading('living_room', sim_co2, sim_temp, sim_hum):
-                    save_reading('living_room', sim_co2, sim_temp, sim_hum)
-                    print(f"[Simulator] Measured & Saved: CO2: {sim_co2:.0f} ppm | T: {sim_temp:.1f} °C | H: {sim_hum:.1f} %")
-                else:
-                    print(f"[Simulator] Measured (Stable, not saved): CO2: {sim_co2:.0f} ppm")
+                save_reading('living_room', sim_co2, sim_temp, sim_hum)
+                print(f"[Simulator] Measured & Saved: CO2: {sim_co2:.0f} ppm | T: {sim_temp:.1f} °C | H: {sim_hum:.1f} %")
             except Exception as e:
                 print(f"Simulator Error: {e}")
         return
@@ -333,12 +397,8 @@ def sensor_loop():
                         SENSOR_STATUS["remaining_cycles"] = 0
                         SENSOR_STATUS["remaining_seconds"] = 0
                         print(f"MEASURED SCD41: CO2: {co2:.0f} ppm | T: {temp:.1f} | H: {hum:.1f} (Int: {current_interval}s)")
-                        # Use deadband filter before writing to DB
-                        if should_save_reading('living_room', co2, temp, hum):
-                            save_reading('living_room', co2, temp, hum)
-                            print(" -> Saved to database (change threshold exceeded)")
-                        else:
-                            print(" -> Skipped (values are unchanged)")
+                        save_reading('living_room', co2, temp, hum)
+                        print(" -> Saved to database")
                     
                     last_measure_time = now
                 else:
@@ -453,12 +513,8 @@ def api_report():
     except ValueError:
         return jsonify({"error": "Invalid format of numerical values."}), 400
         
-    # Apply change filter (deadband)
-    if should_save_reading(room_id, co2, temp, hum, pressure):
-        save_reading(room_id, co2, temp, hum, pressure)
-        return jsonify({"status": "saved", "message": "Reading was saved."})
-    else:
-        return jsonify({"status": "skipped", "message": "Reading skipped (change is below threshold)."})
+    save_reading(room_id, co2, temp, hum, pressure)
+    return jsonify({"status": "saved", "message": "Reading was saved."})
 
 # --- CSV EXPORT (FOR SPECIFIC ROOM) ---
 @app.route('/api/export')
@@ -511,6 +567,12 @@ def api_reset():
 
 if __name__ == "__main__":
     init_db()
+    
+    # Start background cleanup thread
+    ct = threading.Thread(target=cleanup_loop)
+    ct.daemon = True
+    ct.start()
+    
     t = threading.Thread(target=sensor_loop)
     t.daemon = True
     t.start()
