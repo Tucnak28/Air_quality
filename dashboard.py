@@ -414,6 +414,13 @@ def api_settings():
 def api_reset():
     room_id = request.args.get('room', 'living_room')
     clear_room_history(room_id)
+    
+    # Odstranění vlastního jména z device_names.json (pokud existuje)
+    if room_id in DEVICE_NAMES:
+        del DEVICE_NAMES[room_id]
+        save_device_names()
+        print(f"Alias pro zařízení '{room_id}' byl smazán.")
+        
     return jsonify({"status": "cleared", "room": room_id})
 
 if __name__ == "__main__":
