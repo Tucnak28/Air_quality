@@ -187,59 +187,26 @@ async function loadRoomsList() {
                 updateDashboard(true);
             };
 
-            // Pencil edit icon button to rename aliases dynamically
-            const renameBtn = document.createElement('button');
-            renameBtn.innerHTML = '✏️';
-            renameBtn.style.background = 'none';
-            renameBtn.style.border = 'none';
-            renameBtn.style.cursor = 'pointer';
-            renameBtn.style.fontSize = '0.75rem';
-            renameBtn.style.padding = '6px';
-            renameBtn.style.opacity = '0.6';
-            renameBtn.title = "Rename";
-            renameBtn.onclick = async (e) => {
-                e.stopPropagation();
-                const newName = prompt(`Enter new name for room "${room.name}":`, room.name);
-                if (newName && newName.trim() !== "") {
-                    try {
-                        await fetch('/api/rename', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({id: room.id, name: newName.trim()})
-                        });
-                        if (currentRoom === room.id) {
-                            currentRoomName.innerText = newName.trim();
-                        }
-                        loadRoomsList();
-                    } catch (err) {
-                        console.error(err);
-                    }
-                }
-            };
-            renameBtn.onmouseenter = () => { renameBtn.style.opacity = '1'; };
-            renameBtn.onmouseleave = () => { renameBtn.style.opacity = '0.6'; };
-
-            // Calibration gear button next to edit icon
-            const calBtn = document.createElement('button');
-            calBtn.innerHTML = '⚙️';
-            calBtn.style.background = 'none';
-            calBtn.style.border = 'none';
-            calBtn.style.cursor = 'pointer';
-            calBtn.style.fontSize = '0.75rem';
-            calBtn.style.padding = '6px';
-            calBtn.style.opacity = '0.6';
-            calBtn.title = "Calibrate Offset";
-            calBtn.onclick = (e) => {
+            // Settings button (rename + calibration offsets)
+            const settingsBtn = document.createElement('button');
+            settingsBtn.innerHTML = '⚙️';
+            settingsBtn.style.background = 'none';
+            settingsBtn.style.border = 'none';
+            settingsBtn.style.cursor = 'pointer';
+            settingsBtn.style.fontSize = '0.75rem';
+            settingsBtn.style.padding = '6px';
+            settingsBtn.style.opacity = '0.6';
+            settingsBtn.title = "Room Settings";
+            settingsBtn.onclick = (e) => {
                 e.stopPropagation();
                 openCalibrationModal(room.id, room.name);
             };
-            calBtn.onmouseenter = () => { calBtn.style.opacity = '1'; };
-            calBtn.onmouseleave = () => { calBtn.style.opacity = '0.6'; };
+            settingsBtn.onmouseenter = () => { settingsBtn.style.opacity = '1'; };
+            settingsBtn.onmouseleave = () => { settingsBtn.style.opacity = '0.6'; };
 
             itemContainer.appendChild(dot);
             itemContainer.appendChild(btn);
-            itemContainer.appendChild(renameBtn);
-            itemContainer.appendChild(calBtn);
+            itemContainer.appendChild(settingsBtn);
             roomList.appendChild(itemContainer);
         });
     } catch (err) {
@@ -682,7 +649,8 @@ let calibrationRoomId = null;
 
 async function openCalibrationModal(roomId, roomName) {
     calibrationRoomId = roomId;
-    document.getElementById('calModalTitle').innerText = `Calibrate: ${roomName}`;
+    document.getElementById('calModalTitle').innerText = "Room Settings";
+    document.getElementById('calName').value = roomName;
     
     try {
         const res = await fetch('/api/offsets');
@@ -709,13 +677,20 @@ function closeCalibrationModal() {
 async function saveCalibration() {
     if (!calibrationRoomId) return;
     
+    const nameVal = document.getElementById('calName').value || "";
     const tempVal = parseFloat(document.getElementById('calTemp').value) || 0.0;
     const humVal = parseFloat(document.getElementById('calHum').value) || 0.0;
     const pressVal = parseFloat(document.getElementById('calPress').value) || 0.0;
     const co2Val = parseFloat(document.getElementById('calCo2').value) || 0.0;
     
     try {
-        const res = await fetch('/api/offsets', {
+        const renamePromise = fetch('/api/rename', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: calibrationRoomId, name: nameVal.trim() })
+        });
+        
+        const offsetsPromise = fetch('/api/offsets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -726,16 +701,24 @@ async function saveCalibration() {
                 co2: co2Val
             })
         });
-        const result = await res.json();
-        if (result.status === 'success') {
+        
+        const [renameRes, offsetsRes] = await Promise.all([renamePromise, offsetsPromise]);
+        const renameData = await renameRes.json();
+        const offsetsData = await offsetsRes.json();
+        
+        if (renameData.status === 'success' && offsetsData.status === 'success') {
+            if (currentRoom === calibrationRoomId) {
+                currentRoomName.innerText = nameVal.trim();
+            }
             closeCalibrationModal();
+            await loadRoomsList();
             updateDashboard(true);
         } else {
-            alert(`Error saving offsets: ${result.error}`);
+            alert("Error saving settings.");
         }
     } catch (err) {
         console.error(err);
-        alert(`Failed to save offsets: ${err}`);
+        alert(`Failed to save settings: ${err}`);
     }
 }
 
