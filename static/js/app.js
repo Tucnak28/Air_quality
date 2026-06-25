@@ -219,9 +219,27 @@ async function loadRoomsList() {
             renameBtn.onmouseenter = () => { renameBtn.style.opacity = '1'; };
             renameBtn.onmouseleave = () => { renameBtn.style.opacity = '0.6'; };
 
+            // Calibration gear button next to edit icon
+            const calBtn = document.createElement('button');
+            calBtn.innerHTML = '⚙️';
+            calBtn.style.background = 'none';
+            calBtn.style.border = 'none';
+            calBtn.style.cursor = 'pointer';
+            calBtn.style.fontSize = '0.75rem';
+            calBtn.style.padding = '6px';
+            calBtn.style.opacity = '0.6';
+            calBtn.title = "Calibrate Offset";
+            calBtn.onclick = (e) => {
+                e.stopPropagation();
+                openCalibrationModal(room.id, room.name);
+            };
+            calBtn.onmouseenter = () => { calBtn.style.opacity = '1'; };
+            calBtn.onmouseleave = () => { calBtn.style.opacity = '0.6'; };
+
             itemContainer.appendChild(dot);
             itemContainer.appendChild(btn);
             itemContainer.appendChild(renameBtn);
+            itemContainer.appendChild(calBtn);
             roomList.appendChild(itemContainer);
         });
     } catch (err) {
@@ -618,6 +636,24 @@ async function init() {
         });
     }
     
+    // Bind Calibration Modal Buttons
+    const calModalClose = document.getElementById('calModalClose');
+    const calModalCancel = document.getElementById('calModalCancel');
+    const calModalSave = document.getElementById('calModalSave');
+    
+    if (calModalClose) calModalClose.onclick = closeCalibrationModal;
+    if (calModalCancel) calModalCancel.onclick = closeCalibrationModal;
+    if (calModalSave) calModalSave.onclick = saveCalibration;
+    
+    const calibrationModal = document.getElementById('calibrationModal');
+    if (calibrationModal) {
+        calibrationModal.onclick = function(e) {
+            if (e.target === calibrationModal) {
+                closeCalibrationModal();
+            }
+        };
+    }
+    
     // Set periodic polling
     updateInterval = setInterval(() => updateDashboard(false), 5000);
 }
@@ -638,6 +674,68 @@ async function deletePoint(timestamp) {
     } catch (err) {
         console.error(err);
         alert(`Failed to delete point: ${err}`);
+    }
+}
+
+// State for calibration modal
+let calibrationRoomId = null;
+
+async function openCalibrationModal(roomId, roomName) {
+    calibrationRoomId = roomId;
+    document.getElementById('calModalTitle').innerText = `Calibrate: ${roomName}`;
+    
+    try {
+        const res = await fetch('/api/offsets');
+        const offsets = await res.json();
+        
+        const roomOffsets = offsets[roomId] || { temp: 0.0, hum: 0.0, pressure: 0.0, co2: 0.0 };
+        document.getElementById('calTemp').value = roomOffsets.temp || 0.0;
+        document.getElementById('calHum').value = roomOffsets.hum || 0.0;
+        document.getElementById('calPress').value = roomOffsets.pressure || 0.0;
+        document.getElementById('calCo2').value = roomOffsets.co2 || 0.0;
+        
+        document.getElementById('calibrationModal').classList.add('active');
+    } catch (err) {
+        console.error("Failed to load offsets:", err);
+        alert("Failed to load calibration offsets.");
+    }
+}
+
+function closeCalibrationModal() {
+    document.getElementById('calibrationModal').classList.remove('active');
+    calibrationRoomId = null;
+}
+
+async function saveCalibration() {
+    if (!calibrationRoomId) return;
+    
+    const tempVal = parseFloat(document.getElementById('calTemp').value) || 0.0;
+    const humVal = parseFloat(document.getElementById('calHum').value) || 0.0;
+    const pressVal = parseFloat(document.getElementById('calPress').value) || 0.0;
+    const co2Val = parseFloat(document.getElementById('calCo2').value) || 0.0;
+    
+    try {
+        const res = await fetch('/api/offsets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                room: calibrationRoomId,
+                temp: tempVal,
+                hum: humVal,
+                pressure: pressVal,
+                co2: co2Val
+            })
+        });
+        const result = await res.json();
+        if (result.status === 'success') {
+            closeCalibrationModal();
+            updateDashboard(true);
+        } else {
+            alert(`Error saving offsets: ${result.error}`);
+        }
+    } catch (err) {
+        console.error(err);
+        alert(`Failed to save offsets: ${err}`);
     }
 }
 

@@ -128,6 +128,38 @@
     <!-- Drawer Overlay -->
     <div class="drawer-overlay" id="drawerOverlay"></div>
 
+    <!-- Calibration Modal -->
+    <div class="modal" id="calibrationModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="calModalTitle">Calibrate Sensor</h3>
+                <button class="modal-close" id="calModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="calTemp">Temperature Offset (°C)</label>
+                    <input type="number" id="calTemp" step="0.1" value="0.0">
+                </div>
+                <div class="form-group">
+                    <label for="calHum">Humidity Offset (%)</label>
+                    <input type="number" id="calHum" step="1" value="0.0">
+                </div>
+                <div class="form-group">
+                    <label for="calPress">Pressure Offset (hPa)</label>
+                    <input type="number" id="calPress" step="1" value="0.0">
+                </div>
+                <div class="form-group">
+                    <label for="calCo2">CO2 Offset (ppm)</label>
+                    <input type="number" id="calCo2" step="5" value="0.0">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-modal btn-cancel" id="calModalCancel">Cancel</button>
+                <button class="btn-modal btn-save" id="calModalSave">Save</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Script -->
     <script src="/static/js/app.js"></script>
 </body>

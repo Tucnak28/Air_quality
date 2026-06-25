@@ -46,6 +46,30 @@ def save_device_names():
 
 load_device_names()
 
+DEVICE_OFFSETS_FILE = "device_offsets.json"
+DEVICE_OFFSETS = {}
+
+def load_device_offsets():
+    global DEVICE_OFFSETS
+    if os.path.exists(DEVICE_OFFSETS_FILE):
+        try:
+            with open(DEVICE_OFFSETS_FILE, 'r', encoding='utf-8') as f:
+                DEVICE_OFFSETS = json.load(f)
+        except Exception as e:
+            print(f"Error loading device_offsets.json: {e}")
+            DEVICE_OFFSETS = {}
+    else:
+        DEVICE_OFFSETS = {}
+
+def save_device_offsets():
+    try:
+        with open(DEVICE_OFFSETS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(DEVICE_OFFSETS, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error saving device_offsets.json: {e}")
+
+load_device_offsets()
+
 # --- SENSOR LIBRARIES IMPORT ---
 try:
     from sensirion_i2c_driver import LinuxI2cTransceiver, I2cConnection
@@ -210,6 +234,12 @@ def get_history(hours=168, room_id='living_room', max_points=500):
     if hours == 0:
         hours = 8760
         
+    offsets = DEVICE_OFFSETS.get(room_id, {"co2": 0.0, "temp": 0.0, "hum": 0.0, "pressure": 0.0})
+    co2_off = offsets.get("co2", 0.0)
+    temp_off = offsets.get("temp", 0.0)
+    hum_off = offsets.get("hum", 0.0)
+    press_off = offsets.get("pressure", 0.0)
+        
     with sqlite3.connect(DB_FILE) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -226,10 +256,10 @@ def get_history(hours=168, room_id='living_room', max_points=500):
         
         return {
             "timestamp": [r["timestamp"] for r in downsampled],
-            "co2": [r["co2"] for r in downsampled],
-            "temp": [r["temp"] for r in downsampled],
-            "hum": [r["hum"] for r in downsampled],
-            "pressure": [r["pressure"] for r in downsampled]
+            "co2": [(r["co2"] + co2_off) if r["co2"] is not None else None for r in downsampled],
+            "temp": [(r["temp"] + temp_off) if r["temp"] is not None else None for r in downsampled],
+            "hum": [(r["hum"] + hum_off) if r["hum"] is not None else None for r in downsampled],
+            "pressure": [(r["pressure"] + press_off) if r["pressure"] is not None else None for r in downsampled]
         }
 
 def clear_room_history(room_id):
@@ -518,6 +548,25 @@ def api_rename():
     print(f"Device '{device_id}' renamed to '{new_name}'")
     return jsonify({"status": "success"})
 
+@app.route('/api/offsets', methods=['GET', 'POST'])
+def api_offsets():
+    if request.method == 'POST':
+        data = request.json
+        if not data or 'room' not in data:
+            return jsonify({"error": "Missing 'room' parameter"}), 400
+        room_id = data['room']
+        DEVICE_OFFSETS[room_id] = {
+            "temp": float(data.get('temp', 0.0)),
+            "hum": float(data.get('hum', 0.0)),
+            "pressure": float(data.get('pressure', 0.0)),
+            "co2": float(data.get('co2', 0.0))
+        }
+        save_device_offsets()
+        print(f"Saved offsets for '{room_id}': {DEVICE_OFFSETS[room_id]}")
+        return jsonify({"status": "success"})
+    else:
+        return jsonify(DEVICE_OFFSETS)
+
 # --- UNIVERSAL CONNECTOR FOR DEVICES (ESP32 etc.) ---
 @app.route('/api/report', methods=['POST'])
 def api_report():
@@ -547,6 +596,13 @@ def api_report():
 @app.route('/api/export')
 def api_export():
     room_id = request.args.get('room', 'living_room')
+    
+    offsets = DEVICE_OFFSETS.get(room_id, {"co2": 0.0, "temp": 0.0, "hum": 0.0, "pressure": 0.0})
+    co2_off = offsets.get("co2", 0.0)
+    temp_off = offsets.get("temp", 0.0)
+    hum_off = offsets.get("hum", 0.0)
+    press_off = offsets.get("pressure", 0.0)
+
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('''
@@ -557,10 +613,21 @@ def api_export():
         ''', (room_id,))
         rows = cursor.fetchall()
 
+    calibrated_rows = []
+    for r in rows:
+        ts, co2, temp, hum, press = r
+        calibrated_rows.append((
+            ts,
+            (co2 + co2_off) if co2 is not None else None,
+            (temp + temp_off) if temp is not None else None,
+            (hum + hum_off) if hum is not None else None,
+            (press + press_off) if press is not None else None
+        ))
+
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(['Timestamp', 'CO2 (ppm)', 'Temperature (C)', 'Humidity (%)', 'Pressure (hPa)'])
-    writer.writerows(rows)
+    writer.writerows(calibrated_rows)
     
     return Response(
         output.getvalue(),
