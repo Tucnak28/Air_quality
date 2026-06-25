@@ -367,6 +367,7 @@ def sensor_loop():
 
     scd41 = None
     last_measure_time = 0
+    skip_readings_after_connect = 0
 
     while True:
         try:
@@ -379,6 +380,7 @@ def sensor_loop():
                     time.sleep(1)
                     scd41.start_periodic_measurement()
                     print(">>> SCD41 SENSOR CONNECTED <<<")
+                    skip_readings_after_connect = 2  # Skip first 2 readings to stabilize sensor filters
                 except Exception as e:
                     print(f"SENSOR CONNECTION ERROR: {e}")
                     scd41 = None
@@ -399,7 +401,9 @@ def sensor_loop():
                     # Update local sensor network contact timestamp
                     DEVICE_LAST_SEEN['living_room'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
-                    # WARM-UP LOGIC
+                    # Determine if we should save
+                    should_skip_save = False
+                    
                     if measurements_taken < SKIP_FIRST_N:
                         measurements_taken += 1
                         remaining = SKIP_FIRST_N - measurements_taken
@@ -407,7 +411,15 @@ def sensor_loop():
                         SENSOR_STATUS["remaining_cycles"] = remaining
                         SENSOR_STATUS["remaining_seconds"] = remaining * current_interval
                         print(f"SCD41 WARM-UP ({measurements_taken}/{SKIP_FIRST_N}): CO2: {co2:.0f} | T: {temp:.1f} | H: {hum:.1f}")
-                    else:
+                        should_skip_save = True
+                        
+                    if skip_readings_after_connect > 0:
+                        skip_readings_after_connect -= 1
+                        if not should_skip_save:
+                            print(f"SCD41 STABILIZING (skipping initial reading): CO2: {co2:.0f} | T: {temp:.1f} | H: {hum:.1f}")
+                            should_skip_save = True
+                            
+                    if not should_skip_save:
                         SENSOR_STATUS["is_warming_up"] = False
                         SENSOR_STATUS["remaining_cycles"] = 0
                         SENSOR_STATUS["remaining_seconds"] = 0
