@@ -238,7 +238,7 @@ def clear_room_history(room_id):
         cursor.execute('DELETE FROM readings WHERE room_id = ?', (room_id,))
         conn.commit()
 
-def cleanup_redundant_readings(max_age_minutes=10):
+def cleanup_redundant_readings(max_age_minutes=10, keep_interval_minutes=5):
     threshold_time = (datetime.now() - timedelta(minutes=max_age_minutes)).strftime("%Y-%m-%d %H:%M:%S")
     try:
         with sqlite3.connect(DB_FILE) as conn:
@@ -261,11 +261,16 @@ def cleanup_redundant_readings(max_age_minutes=10):
                 
                 if len(rows) < 3:
                     continue
-                    
+                
+                # Track the last kept timestamp for this room
+                last_kept_time = datetime.strptime(rows[0]['timestamp'], "%Y-%m-%d %H:%M:%S")
+                
                 for i in range(1, len(rows) - 1):
                     prev_row = rows[i-1]
                     curr_row = rows[i]
                     next_row = rows[i+1]
+                    
+                    curr_time = datetime.strptime(curr_row['timestamp'], "%Y-%m-%d %H:%M:%S")
                     
                     if curr_row['timestamp'] >= threshold_time:
                         continue
@@ -283,7 +288,17 @@ def cleanup_redundant_readings(max_age_minutes=10):
                     press_red = is_redundant_val(prev_row['pressure'], curr_row['pressure'], next_row['pressure'], 0.5)
                     
                     if co2_red and temp_red and hum_red and press_red:
-                        ids_to_delete.append(curr_row['id'])
+                        # Check if enough time has passed since the last kept reading
+                        elapsed = (curr_time - last_kept_time).total_seconds()
+                        if elapsed >= keep_interval_minutes * 60:
+                            # Keep this point as a heartbeat to prevent goofy graphs
+                            last_kept_time = curr_time
+                        else:
+                            # It is redundant and close to the last kept point, delete it
+                            ids_to_delete.append(curr_row['id'])
+                    else:
+                        # Value changed: this point is not redundant and is kept
+                        last_kept_time = curr_time
             
             if ids_to_delete:
                 chunk_size = 500
