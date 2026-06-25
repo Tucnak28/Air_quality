@@ -587,6 +587,10 @@ async function init() {
     const chartEl = document.getElementById('chart');
     if (chartEl) {
         chartEl.on('plotly_click', function(eventData) {
+            // Only allow point deletion if Delete Mode is toggled active
+            const chkDeleteMode = document.getElementById('chkDeleteMode');
+            if (!chkDeleteMode || !chkDeleteMode.checked) return;
+
             if (!eventData || !eventData.points || eventData.points.length === 0) return;
             const point = eventData.points[0];
             const rawX = point.x;
