@@ -592,6 +592,27 @@ def api_reset():
         
     return jsonify({"status": "cleared", "room": room_id})
 
+@app.route('/api/delete_reading', methods=['POST'])
+def api_delete_reading():
+    room_id = request.args.get('room', 'living_room')
+    data = request.json
+    if not data or 'timestamp' not in data:
+        return jsonify({"error": "Missing 'timestamp' in request payload."}), 400
+        
+    timestamp = data['timestamp']
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM readings WHERE room_id = ? AND timestamp = ?', (room_id, timestamp))
+            conn.commit()
+            deleted_count = cursor.rowcount
+            
+        print(f"Deleted {deleted_count} reading(s) at {timestamp} for room '{room_id}'")
+        return jsonify({"status": "success", "deleted_count": deleted_count})
+    except Exception as e:
+        print(f"Error deleting reading: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     init_db()
     

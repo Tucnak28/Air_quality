@@ -598,8 +598,47 @@ async function init() {
     // Initial fetch
     await updateDashboard(true);
     
+    // Bind click handler on Plotly chart to allow deleting points
+    const chartEl = document.getElementById('chart');
+    if (chartEl) {
+        chartEl.on('plotly_click', function(eventData) {
+            if (!eventData || !eventData.points || eventData.points.length === 0) return;
+            const point = eventData.points[0];
+            const rawX = point.x;
+            const rawY = point.y;
+            
+            const date = new Date(rawX);
+            const pad = (n) => String(n).padStart(2, '0');
+            const formattedTimestamp = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+            
+            const metricName = currentMetric.toUpperCase();
+            if (confirm(`Do you want to delete this data point?\nTime: ${formattedTimestamp}\nValue: ${rawY} (${metricName})`)) {
+                deletePoint(formattedTimestamp);
+            }
+        });
+    }
+    
     // Set periodic polling
     updateInterval = setInterval(() => updateDashboard(false), 5000);
+}
+
+async function deletePoint(timestamp) {
+    try {
+        const res = await fetch(`/api/delete_reading?room=${currentRoom}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ timestamp: timestamp })
+        });
+        const result = await res.json();
+        if (result.status === 'success') {
+            updateDashboard(true);
+        } else {
+            alert(`Error deleting point: ${result.error}`);
+        }
+    } catch (err) {
+        console.error(err);
+        alert(`Failed to delete point: ${err}`);
+    }
 }
 
 // --- TOUCH SWIPE GESTURES FOR MOBILE ---
