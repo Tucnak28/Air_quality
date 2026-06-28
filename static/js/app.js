@@ -506,15 +506,48 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
         type: 'date', 
         gridcolor: '#222', 
         fixedrange: true,
-        tickfont: { color: '#888' }
+        tickfont: { color: '#888' },
+        tickangle: -45
     };
 
     if (currentHours > 0 && xDates.length > 0) {
         const lastTime = xDates[xDates.length - 1];
         const startTime = new Date(lastTime.getTime() - (currentHours * 3600 * 1000));
         xaxisConfig.range = [startTime, lastTime];
+
+        // Determine dynamic tick interval based on selected duration
+        let tickInterval = 5 * 60 * 1000; // default 5m
+        if (currentHours <= 1.5) { // 1H
+            tickInterval = 5 * 60 * 1000;
+            xaxisConfig.tickformat = '%H:%M';
+        } else if (currentHours <= 6) {
+            tickInterval = 30 * 60 * 1000;
+            xaxisConfig.tickformat = '%H:%M';
+        } else if (currentHours <= 24) { // 1D
+            tickInterval = 2 * 3600 * 1000; // every 2 hours
+            xaxisConfig.tickformat = '%H:%M';
+        } else if (currentHours <= 168) { // 1W
+            tickInterval = 12 * 3600 * 1000; // every 12 hours
+            xaxisConfig.tickformat = '%d.%m. %H:%M';
+        } else if (currentHours <= 720) { // 1M
+            tickInterval = 2 * 24 * 3600 * 1000; // every 2 days
+            xaxisConfig.tickformat = '%d.%m.';
+        } else {
+            tickInterval = 7 * 24 * 3600 * 1000; // every week
+            xaxisConfig.tickformat = '%d.%m.';
+        }
+
+        xaxisConfig.tickmode = 'linear';
+        xaxisConfig.dtick = tickInterval;
+
+        // Align ticks on clean boundaries in local timezone
+        const tzOffsetMs = startTime.getTimezoneOffset() * 60 * 1000;
+        const localTimeMs = startTime.getTime() - tzOffsetMs;
+        const roundedLocalMs = Math.floor(localTimeMs / tickInterval) * tickInterval;
+        xaxisConfig.tick0 = new Date(roundedLocalMs + tzOffsetMs);
     } else {
         xaxisConfig.autorange = true;
+        xaxisConfig.nticks = 20;
     }
 
     const layout = {
@@ -522,7 +555,7 @@ function drawChart(data, hasCo2, hasTemp, hasHum, hasPress) {
         plot_bgcolor: '#121212', 
         font: { color: '#999', size: 10, family: 'sans-serif' },
         showlegend: false, 
-        margin: { t: 20, l: 45, r: 15, b: 40 }, 
+        margin: { t: 20, l: 45, r: 15, b: 55 }, 
         hovermode: 'x unified',
         hoverlabel: {
             bgcolor: '#1e1e1e',
